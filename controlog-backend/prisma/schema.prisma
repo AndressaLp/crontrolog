@@ -60,6 +60,10 @@ model Usuario {
   resetTokenExpiraEm  DateTime?     @map("reset_token_expira_em")
   criadoEm            DateTime      @default(now()) @map("criado_em")
 
+  // Preenchido só em usuários de perfil MOTORISTA — é por aqui que a visão
+  // restrita ("minhas rotas") descobre de qual Motorista o usuário logado é.
+  motorista Motorista?
+
   @@map("usuarios")
 }
 
@@ -70,6 +74,12 @@ model Motorista {
   telefone  String
   status    MotoristaStatus @default(ATIVO)
   criadoEm  DateTime        @default(now()) @map("criado_em")
+
+  // Null enquanto o motorista não tem acesso ao sistema — um gestor cria o
+  // login depois (POST /api/motoristas/:id/acesso). onDelete: SetNull para
+  // que apagar o usuário não apague o cadastro operacional do motorista.
+  usuarioId String?  @unique @map("usuario_id")
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   rotas    Rota[]
   entregas Entrega[]

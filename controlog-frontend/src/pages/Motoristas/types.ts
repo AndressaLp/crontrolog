@@ -9,6 +9,13 @@ export interface Motorista {
   emRota: boolean
   entregasRealizadas: number
   criadoEm: string
+  /** E-mail de login do motorista, ou null se ele ainda não tem acesso. */
+  acessoEmail: string | null
+}
+
+export interface AcessoMotoristaInput {
+  email: string
+  senha: string
 }
 
 export interface MotoristaInput {

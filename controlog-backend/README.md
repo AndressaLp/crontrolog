@@ -79,7 +79,7 @@ A API sobe em `http://localhost:3333`. Health check: `GET /health`.
 
 ## Testes
 
-Os testes unitários injetam um Prisma Client mockado diretamente nos services (todos os services são fábricas `create*Service(prisma)`), então **não é necessário ter o banco rodando** para executar `npm test`. Cobertura atual: 90 testes, acima de 90% de statements/lines (meta do RFC, RNF07, é ≥70%).
+Os testes unitários injetam um Prisma Client mockado diretamente nos services (todos os services são fábricas `create*Service(prisma)`), então **não é necessário ter o banco rodando** para executar `npm test`. Cobertura atual: 164 testes, acima de 90% de statements/lines (meta do RFC, RNF07, é ≥70%).
 
 ## Autenticação
 
@@ -99,11 +99,19 @@ Todas as demais rotas sob `/api` exigem o header `Authorization: Bearer <accessT
 
 Perfis de usuário: `GESTOR`, `OPERADOR`, `MOTORISTA`. Elevar um usuário a `GESTOR` é feito diretamente no banco (ou via seed) — não existe elevação de privilégio pelo endpoint público de cadastro.
 
+O login de um motorista é criado por um gestor em `POST /api/motoristas/:id/acesso`
+(`{ email, senha }`): cria um `Usuario` com perfil `MOTORISTA` e o vincula ao cadastro
+operacional pelo campo `motoristas.usuario_id`. Quem entra com esse perfil só alcança
+`GET /api/minhas-rotas` — as rotas de gestão respondem `403`, e o inverso também vale
+(gestor/operador recebem `403` em `/api/minhas-rotas`). O recorte está em
+`src/routes/index.js`, via `requireRole`.
+
 ## Endpoints principais
 
 | Recurso | Rotas |
 |---|---|
-| Motoristas | `GET/POST /api/motoristas`, `GET/PUT/DELETE /api/motoristas/:id` |
+| Motoristas | `GET/POST /api/motoristas`, `GET/PUT/DELETE /api/motoristas/:id`, `POST /api/motoristas/:id/acesso` (só `GESTOR`) |
+| Minhas rotas (motorista) | `GET /api/minhas-rotas` (só `MOTORISTA`) |
 | Veículos | `GET/POST /api/veiculos`, `GET/PUT/DELETE /api/veiculos/:id` |
 | Rotas | `GET/POST /api/rotas`, `GET/PUT/DELETE /api/rotas/:id` |
 | Entregas | `GET/POST /api/entregas`, `GET/PUT/DELETE /api/entregas/:id` |

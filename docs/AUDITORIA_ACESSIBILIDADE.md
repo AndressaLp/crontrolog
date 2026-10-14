@@ -36,6 +36,12 @@ Telas cobertas (usuário não autenticado e autenticado como `GESTOR`):
 - Entregas — listagem e modal "Nova Entrega"
 - Relatórios
 
+Telas criadas depois desta auditoria em navegador — "Minhas Rotas" (visão do motorista)
+e o modal "Criar acesso" em Motoristas — entraram na guarda de regressão estrutural
+(`src/test/a11y.test.tsx`, zero violações), mas ainda não passaram por uma rodada de
+verificação de contraste em navegador real. Elas reutilizam os mesmos tokens de cor já
+corrigidos nas telas acima, então o risco é baixo, mas a verificação fica pendente.
+
 ## 3. Resultado — antes das correções
 
 | Categoria | O que era | Onde apareceu |

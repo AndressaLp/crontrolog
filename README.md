@@ -18,6 +18,7 @@ O Controlog substitui o controle de rotas e entregas feito hoje em planilhas e W
 * Relatórios filtráveis por período, com motoristas mais ativos e distribuição por status
 * Visualização de rotas em mapa interativo (origem/destino)
 * Simulador de otimização de rotas: gera pedidos fictícios, permite selecioná-los por polígono desenhado no mapa e organizá-los em múltiplas rotas (cada uma com cor, veículo e status próprios), calcula a melhor ordem de entrega de cada rota e desenha o traçado real pelas ruas (via OpenRouteService, com fallback em linha reta)
+* Acesso de motorista: o gestor cria o login de um motorista já cadastrado, e quem entra com esse perfil vê apenas uma tela — "Minhas Rotas" —, com as rotas atribuídas a ele e as entregas de cada uma (separação aplicada no backend por perfil, não só escondida na interface)
 * Planejamento de pedidos: gera pedidos fictícios persistidos, seleciona vários de uma vez pra montar um plano nomeado, divide os pedidos do plano em rotas automaticamente por um tamanho máximo informado e exibe cada rota otimizada num mapa com o traçado real pelas ruas (mesma integração com a OpenRouteService da Otimização de Rotas); cada rota pode ser aprovada a critério do usuário, virando uma Rota real (com código sequencial RT-XXX) e uma Entrega por pedido, aparecendo na página de Rotas junto de Dashboard/Relatórios
 
 ---
@@ -90,7 +91,9 @@ npm run prisma:seed   # cria dados de exemplo e um usuário gestor de teste
 npm run dev           # http://localhost:3333
 ```
 
-Login de teste criado pelo seed: `gestor@controlog.com` / `controlog123`.
+Logins de teste criados pelo seed (senha `controlog123` nos dois):
+`gestor@controlog.com` (perfil `GESTOR`, acesso completo) e `motorista@controlog.com`
+(perfil `MOTORISTA`, só a tela "Minhas Rotas").
 
 Detalhes completos (variáveis de ambiente, endpoints, regras de negócio implementadas) em [`controlog-backend/README.md`](controlog-backend/README.md).
 

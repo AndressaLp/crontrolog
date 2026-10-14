@@ -37,6 +37,24 @@ async function main() {
     });
   }
 
+  // ─── Acesso de motorista ────────────────────────────────────────────────
+  // Marcos Oliveira é a persona do perfil MOTORISTA no RFC — é dele o login
+  // de exemplo da visão restrita ("Minhas Rotas").
+  const usuarioMotorista = await prisma.usuario.upsert({
+    where: { email: 'motorista@controlog.com' },
+    update: {},
+    create: {
+      nome: motoristas.marcos.nome,
+      email: 'motorista@controlog.com',
+      senhaHash,
+      perfil: 'MOTORISTA',
+    },
+  });
+  await prisma.motorista.update({
+    where: { id: motoristas.marcos.id },
+    data: { usuarioId: usuarioMotorista.id },
+  });
+
   // ─── Veículos ───────────────────────────────────────────────────────────
   const veiculosSeed = [
     { key: 'sprinter', placa: 'ABC-1234', modelo: 'Mercedes Sprinter', capacidade: '1.500 kg' },
@@ -62,7 +80,8 @@ async function main() {
   // mostra só o que foi de fato aprovado.
 
   console.log(`Seed concluído: ${motoristasSeed.length} motoristas, ${veiculosSeed.length} veículos.`);
-  console.log(`Login de teste -> email: ${gestor.email} | senha: controlog123`);
+  console.log(`Login de gestor    -> email: ${gestor.email} | senha: controlog123`);
+  console.log(`Login de motorista -> email: ${usuarioMotorista.email} | senha: controlog123`);
 }
 
 main()

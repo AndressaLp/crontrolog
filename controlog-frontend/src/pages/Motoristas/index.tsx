@@ -1,14 +1,22 @@
 import { useState } from 'react'
-import { Search, Plus, Eye, Pencil, Trash2, Truck, CheckCircle, XCircle } from 'lucide-react'
+import { Search, Plus, Eye, Pencil, Trash2, Truck, CheckCircle, XCircle, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/lib/api'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import Pagination from '@/components/shared/Pagination'
-import { useCreateMotorista, useDeleteMotorista, useMotoristas, useUpdateMotorista } from './api'
+import { useAuthStore } from '@/stores/authStore'
+import {
+  useCreateMotorista,
+  useCriarAcessoMotorista,
+  useDeleteMotorista,
+  useMotoristas,
+  useUpdateMotorista,
+} from './api'
 import MotoristaFormModal from './MotoristaFormModal'
+import MotoristaAcessoModal from './MotoristaAcessoModal'
 import MotoristaDetalhes from './MotoristaDetalhes'
 import { statusExibicao } from './status'
-import type { Motorista, StatusMotorista } from './types'
+import type { AcessoMotoristaInput, Motorista, StatusMotorista } from './types'
 
 const statusOptions: StatusMotorista[] = ['ATIVO', 'INATIVO']
 
@@ -32,6 +40,11 @@ export default function Motoristas() {
   const [editando, setEditando]         = useState<Motorista | null>(null)
   const [formAberto, setFormAberto]     = useState(false)
   const [excluindo, setExcluindo]       = useState<Motorista | null>(null)
+  const [criandoAcesso, setCriandoAcesso] = useState<Motorista | null>(null)
+
+  // Criar login dá acesso ao sistema a uma pessoa nova — o backend restringe ao
+  // gestor, então a interface não oferece a ação a um operador.
+  const ehGestor = useAuthStore((s) => s.usuario?.perfil) === 'GESTOR'
 
   const { data, isLoading } = useMotoristas({
     busca: search || undefined,
@@ -42,6 +55,7 @@ export default function Motoristas() {
   const createMutation = useCreateMotorista()
   const updateMutation = useUpdateMotorista()
   const deleteMutation = useDeleteMotorista()
+  const acessoMutation = useCriarAcessoMotorista()
 
   // Contadores dos cards de resumo vêm de consultas próprias (só pagination.total,
   // pageSize: 1) em vez de contar sobre `motoristas`, porque esse array agora é só
@@ -78,6 +92,17 @@ export default function Motoristas() {
         setEditando(null)
       })
       .catch((error) => toast.error(getErrorMessage(error)))
+  }
+
+  function handleCriarAcesso(data: AcessoMotoristaInput) {
+    if (!criandoAcesso) return
+    acessoMutation
+      .mutateAsync({ id: criandoAcesso.id, data })
+      .then(() => {
+        toast.success(`Acesso criado para ${criandoAcesso.nome}.`)
+        setCriandoAcesso(null)
+      })
+      .catch((error) => toast.error(getErrorMessage(error, 'Não foi possível criar o acesso.')))
   }
 
   function handleExcluir() {
@@ -189,6 +214,16 @@ export default function Motoristas() {
                       <Eye size={14} />
                       Detalhes
                     </button>
+                    {ehGestor && !m.acessoEmail && (
+                      <button
+                        onClick={() => setCriandoAcesso(m)}
+                        aria-label={`Criar acesso para ${m.nome}`}
+                        title="Criar acesso ao sistema"
+                        className="text-gray-400 hover:text-blue-600 transition-colors"
+                      >
+                        <KeyRound size={14} />
+                      </button>
+                    )}
                     <button
                       onClick={() => { setEditando(m); setFormAberto(true) }}
                       aria-label={`Editar ${m.nome}`}
@@ -220,6 +255,13 @@ export default function Motoristas() {
         onClose={() => { setFormAberto(false); setEditando(null) }}
         onSave={handleSave}
         saving={createMutation.isPending || updateMutation.isPending}
+      />
+
+      <MotoristaAcessoModal
+        motorista={criandoAcesso}
+        onClose={() => setCriandoAcesso(null)}
+        onSave={handleCriarAcesso}
+        saving={acessoMutation.isPending}
       />
 
       <MotoristaDetalhes motorista={selected} onClose={() => setSelected(null)} />

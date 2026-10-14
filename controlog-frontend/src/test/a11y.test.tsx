@@ -18,6 +18,8 @@ import Pedidos from '@/pages/Pedidos';
 import Planos from '@/pages/Planos';
 import PlanoDetalhe from '@/pages/PlanoDetalhe';
 import Relatorios from '@/pages/Relatorios';
+import MinhasRotas from '@/pages/MinhasRotas';
+import { useAuthStore } from '@/stores/authStore';
 
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
@@ -27,6 +29,7 @@ const mockedApi = vi.mocked(api, true);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useAuthStore.setState({ usuario: null, accessToken: null, refreshToken: null });
   mockedApi.get.mockResolvedValue({ data: paginated([]) });
 });
 
@@ -76,6 +79,74 @@ describe('acessibilidade (regressão estrutural)', () => {
     const { container, findByRole } = renderWithProviders(<Motoristas />);
     await user.click(await findByRole('button', { name: /Novo Motorista/i }));
     await findByRole('dialog');
+    await expect(axe(container)).resolves.toHaveNoViolations();
+  });
+
+  test('Motoristas — modal Criar acesso não tem violações de acessibilidade', async () => {
+    const user = userEvent.setup();
+    useAuthStore.setState({
+      usuario: { id: 'u1', nome: 'Ricardo', email: 'gestor@controlog.com', perfil: 'GESTOR' },
+    });
+    mockedApi.get.mockResolvedValue({
+      data: paginated([
+        {
+          id: 'm1',
+          nome: 'Carlos Silva',
+          cnh: '12345678901',
+          telefone: '(47) 99111-1111',
+          status: 'ATIVO',
+          emRota: false,
+          entregasRealizadas: 0,
+          criadoEm: new Date().toISOString(),
+          acessoEmail: null,
+        },
+      ]),
+    });
+
+    const { container, findByRole } = renderWithProviders(<Motoristas />);
+    await user.click(await findByRole('button', { name: 'Criar acesso para Carlos Silva' }));
+    await findByRole('dialog');
+    await expect(axe(container)).resolves.toHaveNoViolations();
+  });
+
+  test('Minhas Rotas (visão do motorista) não tem violações de acessibilidade', async () => {
+    mockedApi.get.mockResolvedValue({
+      data: {
+        motorista: {
+          id: 'm1',
+          nome: 'Marcos Oliveira',
+          cnh: '67890123456',
+          telefone: '(47) 99666-6666',
+          status: 'ATIVO',
+        },
+        rotas: [
+          {
+            id: 'r1',
+            codigo: 'RT-001',
+            origem: 'Centro de Distribuição',
+            destino: 'Centro',
+            status: 'ATIVA',
+            dataHora: '2026-10-14T08:00:00.000Z',
+            coordenadasOrigem: [-26.3045, -48.8487],
+            coordenadasDestino: [-26.28, -48.84],
+            veiculo: { id: 'v1', placa: 'ABC-1234', modelo: 'Mercedes Sprinter' },
+            entregas: [
+              {
+                id: 'e1',
+                codigo: 'EN-001',
+                destino: 'Rua das Flores, 100',
+                status: 'PENDENTE',
+                dataPrevista: '2026-10-14T08:00:00.000Z',
+                dataEfetiva: null,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const { container, findByText } = renderWithProviders(<MinhasRotas />, { route: '/minhas-rotas' });
+    await findByText('RT-001');
     await expect(axe(container)).resolves.toHaveNoViolations();
   });
 

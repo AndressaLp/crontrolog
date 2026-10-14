@@ -1,9 +1,11 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Layout from './components/layout'
 import RequireAuth from './components/auth/RequireAuth'
+import { PERFIS_GESTAO } from './lib/perfil'
 import Login          from './pages/Login'
 import EsqueciSenha   from './pages/EsqueciSenha'
 import RedefinirSenha from './pages/RedefinirSenha'
+import MinhasRotas from './pages/MinhasRotas'
 import Dashboard   from './pages/Dashboard'
 import Entregas    from './pages/Entregas'
 import Veiculos    from './pages/Veiculos'
@@ -23,7 +25,15 @@ export default function App() {
         <Route path="/esqueci-senha" element={<EsqueciSenha />} />
         <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
-        <Route element={<RequireAuth />}>
+        {/* Visão restrita do motorista — compartilha o Layout, mas é a única
+            rota que o perfil MOTORISTA consegue abrir. */}
+        <Route element={<RequireAuth perfis={['MOTORISTA']} />}>
+          <Route path="/" element={<Layout />}>
+            <Route path="minhas-rotas" element={<MinhasRotas />} />
+          </Route>
+        </Route>
+
+        <Route element={<RequireAuth perfis={PERFIS_GESTAO} />}>
           <Route path="/" element={<Layout />}>
             <Route index         element={<Dashboard />}  />
             <Route path="entregas"   element={<Entregas />}   />
