@@ -79,7 +79,7 @@ A API sobe em `http://localhost:3333`. Health check: `GET /health`.
 
 ## Testes
 
-Os testes unitários injetam um Prisma Client mockado diretamente nos services (todos os services são fábricas `create*Service(prisma)`), então **não é necessário ter o banco rodando** para executar `npm test`. Cobertura atual: 164 testes, acima de 90% de statements/lines (meta do RFC, RNF07, é ≥70%).
+Os testes unitários injetam um Prisma Client mockado diretamente nos services (todos os services são fábricas `create*Service(prisma)`), então **não é necessário ter o banco rodando** para executar `npm test`. Cobertura atual: 174 testes, acima de 90% de statements/lines (meta do RFC, RNF07, é ≥70%).
 
 ## Autenticação
 
@@ -106,12 +106,23 @@ operacional pelo campo `motoristas.usuario_id`. Quem entra com esse perfil só a
 (gestor/operador recebem `403` em `/api/minhas-rotas`). O recorte está em
 `src/routes/index.js`, via `requireRole`.
 
+A única escrita permitida ao motorista é concluir uma entrega dele
+(`PATCH /api/minhas-rotas/entregas/:id/concluir`, que grava `status: ENTREGUE` e
+`dataEfetiva`). A posse da entrega é conferida no service, não só pelo perfil da rota
+HTTP — o id vem da requisição, então sem essa checagem um motorista concluiria a
+entrega de outro só trocando o id.
+
+Ao reatribuir uma rota a outro motorista (`PUT /api/rotas/:id` com um `motoristaId`
+diferente), as entregas da rota são movidas junto, na mesma transação:
+`Entrega.motoristaId` é independente do da `Rota`, e se ficasse para trás o motorista
+antigo continuaria vendo essas entregas como dele.
+
 ## Endpoints principais
 
 | Recurso | Rotas |
 |---|---|
 | Motoristas | `GET/POST /api/motoristas`, `GET/PUT/DELETE /api/motoristas/:id`, `POST /api/motoristas/:id/acesso` (só `GESTOR`) |
-| Minhas rotas (motorista) | `GET /api/minhas-rotas` (só `MOTORISTA`) |
+| Minhas rotas (motorista) | `GET /api/minhas-rotas`, `PATCH /api/minhas-rotas/entregas/:id/concluir` (só `MOTORISTA`) |
 | Veículos | `GET/POST /api/veiculos`, `GET/PUT/DELETE /api/veiculos/:id` |
 | Rotas | `GET/POST /api/rotas`, `GET/PUT/DELETE /api/rotas/:id` |
 | Entregas | `GET/POST /api/entregas`, `GET/PUT/DELETE /api/entregas/:id` |

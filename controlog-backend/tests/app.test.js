@@ -74,6 +74,15 @@ describe('app', () => {
     expect(res.body.error).toBe('ForbiddenError');
   });
 
+  test('concluir entrega é restrito ao MOTORISTA', async () => {
+    const res = await request(app)
+      .patch('/api/minhas-rotas/entregas/e1/concluir')
+      .set('Authorization', `Bearer ${tokenDe('GESTOR')}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('ForbiddenError');
+  });
+
   test('criar acesso de motorista é restrito ao GESTOR', async () => {
     const res = await request(app)
       .post('/api/motoristas/m1/acesso')

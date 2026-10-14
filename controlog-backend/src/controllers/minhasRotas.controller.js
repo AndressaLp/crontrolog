@@ -6,5 +6,10 @@ export function createMinhasRotasController(minhasRotasService) {
       const resultado = await minhasRotasService.listar(req.user.id, req.query);
       res.json(resultado);
     }),
+
+    concluirEntrega: asyncHandler(async (req, res) => {
+      const entrega = await minhasRotasService.concluirEntrega(req.user.id, req.params.id);
+      res.json(entrega);
+    }),
   };
 }

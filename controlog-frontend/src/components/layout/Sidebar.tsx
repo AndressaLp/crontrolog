@@ -9,6 +9,7 @@ import {
   Package,
   ClipboardList,
   BarChart2,
+  UserCog,
 } from 'lucide-react'
 import { PERFIS_GESTAO, type Perfil } from '@/lib/perfil'
 import { useAuthStore } from '@/stores/authStore'
@@ -20,6 +21,7 @@ const navItems: { to: string; icon: typeof Truck; label: string; perfis: Perfil[
   { to: '/veiculos',          icon: Truck,           label: 'Veículos',            perfis: PERFIS_GESTAO },
   { to: '/motoristas',        icon: Users,           label: 'Motoristas',          perfis: PERFIS_GESTAO },
   { to: '/rotas',             icon: MapPin,          label: 'Rotas',               perfis: PERFIS_GESTAO },
+  { to: '/atribuicoes',       icon: UserCog,         label: 'Atribuição de Rotas', perfis: PERFIS_GESTAO },
   { to: '/otimizacao-rotas',  icon: Route,           label: 'Otimização de Rotas', perfis: PERFIS_GESTAO },
   { to: '/pedidos',           icon: Package,         label: 'Pedidos',             perfis: PERFIS_GESTAO },
   { to: '/planos',            icon: ClipboardList,   label: 'Planos',              perfis: PERFIS_GESTAO },

@@ -53,7 +53,7 @@ cadastro do motorista.
 
 | Grupo de rotas | Perfis permitidos |
 |---|---|
-| `/api/minhas-rotas` | `MOTORISTA` |
+| `/api/minhas-rotas` (listagem e `PATCH .../entregas/:id/concluir`) | `MOTORISTA` |
 | `/api/motoristas`, `/veiculos`, `/rotas`, `/entregas`, `/dashboard`, `/relatorios`, `/otimizacao-rotas`, `/pedidos`, `/planos` | `GESTOR`, `OPERADOR` |
 | `POST /api/motoristas/:id/acesso` | `GESTOR` |
 
@@ -94,9 +94,9 @@ de uma mesma rede por causa de uma única tentativa.
 
 **Cobertura automatizada atual:**
 
-- **Backend:** 164 testes em 20 suítes — **94,4% statements**, **91,4% funções**, **78,5% branches**.
+- **Backend:** 174 testes em 20 suítes — **94,3% statements**, **91,1% funções**, **79,9% branches**.
   Comando: `cd controlog-backend && npm run test:coverage`.
-- **Frontend:** 177 testes em 29 suítes — **81,7% statements**, **75,7% funções**, **79,3% branches**.
+- **Frontend:** 191 testes em 30 suítes — **82,2% statements**, **76,5% funções**, **80,5% branches**.
   Comando: `cd controlog-frontend && npm run test:coverage`.
 
 Ambos acima da meta de 70% definida na RNF07.
@@ -116,6 +116,13 @@ integração de ponta a ponta contra a API real só é verificada manualmente, c
 desenhar um polígono no mapa (cliques de mouse formando os vértices) também só é
 verificada manualmente — o teste de página simula "desenhar um polígono" chamando
 diretamente o callback que o mapa mockado expõe, com coordenadas fixas.
+
+Os `Select` do shadcn/Radix, por outro lado, passaram a ser testáveis: o jsdom não
+implementa a Pointer Capture API e o Radix chama `hasPointerCapture` ao abrir o menu,
+o que quebrava qualquer teste que tentasse selecionar uma opção. O `src/test/setup.ts`
+agora preenche essas três funções (junto de `matchMedia`, `ResizeObserver` e
+`scrollIntoView`, que já estavam lá pelo mesmo motivo), então a escolha de
+motorista/veículo é verificada automaticamente na tela de Atribuição de Rotas.
 
 ## 3. Casos de teste por requisito funcional
 
@@ -172,6 +179,12 @@ práticas de segurança/escalabilidade:
 | Acesso do motorista | Criar acesso com token de `OPERADOR` | `403 Forbidden` — a ação é restrita ao `GESTOR` | `tests/app.test.js` |
 | Visão do motorista | `GET /api/minhas-rotas` | Retorna só as rotas cujo `motoristaId` é o do motorista vinculado ao usuário logado, cada uma com veículo e entregas; aceita filtro opcional por `status` | `tests/minhasRotas.service.test.js` |
 | Visão do motorista | Usuário `MOTORISTA` sem cadastro de motorista vinculado | `403 Forbidden` (token válido, mas não dá acesso a nenhum dado) | `tests/minhasRotas.service.test.js` |
+| Conclusão de entrega | `PATCH /api/minhas-rotas/entregas/:id/concluir` | Marca a entrega como `ENTREGUE` e grava `dataEfetiva`; funciona a partir de `PENDENTE` ou `EM_TRANSITO` | `tests/minhasRotas.service.test.js` |
+| Conclusão de entrega | Motorista tenta concluir entrega de outro motorista | `403 Forbidden` — a posse é checada no service, não só pelo perfil da rota HTTP (o id vem da requisição) | `tests/minhasRotas.service.test.js` |
+| Conclusão de entrega | Concluir entrega já `ENTREGUE` / já `CANCELADA` | `409 Conflict` / `422 Unprocessable Entity` | `tests/minhasRotas.service.test.js` |
+| Atribuição de rota | `PUT /api/rotas/:id` trocando `motoristaId` | As entregas da rota são movidas para o novo motorista na mesma transação — sem isso o motorista antigo continuaria vendo as entregas como dele | `tests/rota.service.test.js` |
+| Atribuição de rota | `PUT /api/rotas/:id` sem trocar o motorista | Nenhuma entrega é tocada | `tests/rota.service.test.js` |
+| Atribuição de rota | `GET /api/rotas` | Cada rota traz `totalEntregas` e `entregasPendentes` (`PENDENTE` + `EM_TRANSITO`), usados na tela de atribuição | `tests/rota.service.test.js` |
 | Separação por perfil | Token de `MOTORISTA` em `/api/rotas`, `/motoristas`, `/planos`, `/dashboard`; token de `GESTOR` em `/api/minhas-rotas` | `403 Forbidden` nos dois sentidos — cada perfil só alcança o próprio grupo de rotas | `tests/app.test.js`, `tests/auth.middleware.test.js` |
 
 ## 4. Casos de teste das regras de negócio (RN01–RN08)
@@ -202,7 +215,10 @@ práticas de segurança/escalabilidade:
 | RN01 | Rota protegida redireciona para `/login` sem sessão; renderiza com sessão ativa | `src/components/auth/RequireAuth.test.tsx`, `src/App.test.tsx` |
 | Perfis | `RequireAuth` com lista de perfis: motorista que abre uma tela de gestão cai em `/minhas-rotas`, gestor que abre `/minhas-rotas` volta para `/`, perfil autorizado passa | `src/components/auth/RequireAuth.test.tsx` |
 | Perfis | Sidebar mostra só "Minhas Rotas" para o motorista e esconde esse link dos perfis de gestão | `src/components/layout/Sidebar.test.tsx` |
-| Visão do motorista | Lista as rotas atribuídas com veículo e entregas, conta rotas/entregas no resumo, filtra por status reconsultando a API, e trata lista vazia e erro de carregamento | `src/pages/MinhasRotas/index.test.tsx` |
+| Visão do motorista | Lista as rotas atribuídas com veículo e entregas, conta rotas/entregas/pendentes no resumo, filtra por status reconsultando a API, e trata lista vazia e erro de carregamento | `src/pages/MinhasRotas/index.test.tsx` |
+| Conclusão de entrega | Botão "Concluir" chama a API e mostra o toast; entrega já concluída não oferece o botão; erro da API aparece com a mensagem do backend | `src/pages/MinhasRotas/index.test.tsx` |
+| Atribuição de rotas | Lista as rotas aprovadas com responsável e contagem de entregas, abre filtrando por `ATIVA`, troca de filtro reconsulta a API, e estado vazio explica que rotas vêm da aprovação de um plano | `src/pages/Atribuicoes/index.test.tsx` |
+| Atribuição de rotas | Trocar o motorista no modal envia o novo `motoristaId` via `PUT /rotas/:id`; "Salvar" fica desabilitado enquanto nada muda; o modal avisa quantas entregas pendentes vão junto; erro da API aparece com a mensagem do backend | `src/pages/Atribuicoes/index.test.tsx` |
 | Acesso do motorista | Gestor cria o acesso pelo modal (`POST /motoristas/:id/acesso`) e vê o toast de sucesso; operador não vê a ação; motorista que já tem login também não | `src/pages/Motoristas/index.test.tsx` |
 | RN03 | Excluir motorista com rota ativa mostra a mensagem de erro do backend | `src/pages/Motoristas/index.test.tsx` |
 | RN04 | Excluir veículo com rota ativa mostra a mensagem de erro do backend | `src/pages/Veiculos/index.test.tsx` |
@@ -219,7 +235,7 @@ práticas de segurança/escalabilidade:
 | Pedidos | Gerar pedidos, selecionar via checkbox (individual e "selecionar todos") e criar plano com os ids certos | `src/pages/Pedidos/index.test.tsx` |
 | Planos | Lista em cards com status/contagem; excluir (com confirmação) libera os pedidos | `src/pages/Planos/index.test.tsx` |
 | Plano detalhe | Otimizar divide os pedidos em grupos por `rotaIndex`, cada um com nome/cor/veículo derivados da posição do grupo; renomear o plano | `src/pages/PlanoDetalhe/index.test.tsx` |
-| Plano detalhe | Grupo com `pedido.rota` preenchido mostra o badge "Aprovada — RT-XXX" em vez do botão; clicar em "Aprovar Rota" abre o modal com o grupo certo (seleção de motorista/veículo verificada manualmente, mesma lacuna já documentada para `RotaModal`) | `src/pages/PlanoDetalhe/index.test.tsx`, `src/test/a11y.test.tsx` |
+| Plano detalhe | Grupo com `pedido.rota` preenchido mostra o badge "Aprovada — RT-XXX" em vez do botão; clicar em "Aprovar Rota" abre o modal com o grupo certo | `src/pages/PlanoDetalhe/index.test.tsx`, `src/test/a11y.test.tsx` |
 | Plano detalhe | Depois de otimizar, calcula o traçado de cada rota com uma chamada sequencial por grupo (`/otimizacao-rotas/otimizar`) e alimenta o mapa (mockado); plano Aberto não mostra mapa | `src/pages/PlanoDetalhe/index.test.tsx` |
 | Plano detalhe | Botão "Reotimizar" recalcula o traçado de uma única rota (nova chamada só com os pedidos daquele grupo), sem mexer nas outras | `src/pages/PlanoDetalhe/index.test.tsx` |
 
@@ -265,6 +281,23 @@ foi implementado):
    atribuída a você para este filtro.", sem erro. ✅
 
 Também sem erros de console em nenhuma etapa.
+
+**Conclusão de entrega e atribuição de rotas** (mesmo roteiro, rodado depois dessas
+duas funcionalidades):
+
+1. Como motorista, numa rota com 3 entregas pendentes, clicar em "Concluir" na primeira
+   → toast "Entrega EN-911 concluída.", o resumo vai de 3 para 2 pendentes, a linha
+   passa a mostrar "Entregue em <data>" e o botão some só daquela entrega. ✅
+2. Como gestor, em "Atribuição de Rotas" → a rota aparece com o total de entregas e
+   quantas seguem pendentes, mais o responsável atual (motorista + placa). ✅
+3. Abrir "Atribuir" → o modal avisa quantas entregas pendentes passam junto, e lista
+   só motoristas `ATIVO`, marcando quem já está em rota. ✅
+4. Trocar o motorista e salvar → toast de sucesso, e a linha da tabela já mostra o novo
+   responsável. ✅
+5. Entrar de novo como o motorista anterior → a rota não aparece mais para ele, e o
+   resumo zera; as entregas foram junto com a rota. ✅
+
+Sem erros de console em nenhuma etapa.
 
 ## 7. Como rodar os testes
 

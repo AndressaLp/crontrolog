@@ -8,6 +8,7 @@ const pageTitles: Record<string, string> = {
   '/veiculos':      'Veículos',
   '/motoristas':    'Motoristas',
   '/rotas':         'Rotas',
+  '/atribuicoes':   'Atribuição de Rotas',
   '/relatorios':    'Relatórios',
   '/minhas-rotas':  'Minhas Rotas',
 }

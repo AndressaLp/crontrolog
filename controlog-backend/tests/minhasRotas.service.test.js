@@ -1,11 +1,17 @@
 import { jest } from '@jest/globals';
 import { createMinhasRotasService } from '../src/services/minhasRotas.service.js';
-import { ForbiddenError } from '../src/utils/AppError.js';
+import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from '../src/utils/AppError.js';
 
 function buildPrismaMock() {
   return {
     motorista: { findUnique: jest.fn() },
     rota: { findMany: jest.fn() },
+    entrega: { findUnique: jest.fn(), update: jest.fn() },
   };
 }
 
@@ -99,5 +105,103 @@ describe('minhasRotas.service', () => {
 
     expect(resultado.rotas).toEqual([]);
     expect(resultado.motorista.id).toBe('m1');
+  });
+});
+
+describe('minhasRotas.service — concluirEntrega', () => {
+  test('marca a entrega como ENTREGUE e grava a data efetiva', async () => {
+    const prisma = buildPrismaMock();
+    prisma.motorista.findUnique.mockResolvedValue(motoristaFake);
+    prisma.entrega.findUnique.mockResolvedValue({
+      id: 'e1',
+      codigo: 'EN-001',
+      status: 'PENDENTE',
+      motoristaId: 'm1',
+    });
+    prisma.entrega.update.mockResolvedValue({
+      id: 'e1',
+      codigo: 'EN-001',
+      destino: 'Rua Teste, 1',
+      status: 'ENTREGUE',
+      dataPrevista: new Date(),
+      dataEfetiva: new Date(),
+    });
+
+    const service = createMinhasRotasService(prisma);
+    const entrega = await service.concluirEntrega('u1', 'e1');
+
+    expect(prisma.entrega.update).toHaveBeenCalledWith({
+      where: { id: 'e1' },
+      data: expect.objectContaining({ status: 'ENTREGUE', dataEfetiva: expect.any(Date) }),
+    });
+    expect(entrega.status).toBe('ENTREGUE');
+    expect(entrega.dataEfetiva).not.toBeNull();
+  });
+
+  test('conclui entrega que já estava EM_TRANSITO', async () => {
+    const prisma = buildPrismaMock();
+    prisma.motorista.findUnique.mockResolvedValue(motoristaFake);
+    prisma.entrega.findUnique.mockResolvedValue({ id: 'e1', status: 'EM_TRANSITO', motoristaId: 'm1' });
+    prisma.entrega.update.mockResolvedValue({ id: 'e1', status: 'ENTREGUE', dataEfetiva: new Date() });
+
+    const service = createMinhasRotasService(prisma);
+    await service.concluirEntrega('u1', 'e1');
+
+    expect(prisma.entrega.update).toHaveBeenCalled();
+  });
+
+  // Sem essa checagem, um motorista concluiria a entrega de outro só trocando
+  // o id na requisição — o perfil sozinho não basta.
+  test('bloqueia concluir entrega de outro motorista', async () => {
+    const prisma = buildPrismaMock();
+    prisma.motorista.findUnique.mockResolvedValue(motoristaFake);
+    prisma.entrega.findUnique.mockResolvedValue({ id: 'e9', status: 'PENDENTE', motoristaId: 'm-outro' });
+
+    const service = createMinhasRotasService(prisma);
+
+    await expect(service.concluirEntrega('u1', 'e9')).rejects.toBeInstanceOf(ForbiddenError);
+    expect(prisma.entrega.update).not.toHaveBeenCalled();
+  });
+
+  test('rejeita concluir entrega já concluída', async () => {
+    const prisma = buildPrismaMock();
+    prisma.motorista.findUnique.mockResolvedValue(motoristaFake);
+    prisma.entrega.findUnique.mockResolvedValue({ id: 'e1', status: 'ENTREGUE', motoristaId: 'm1' });
+
+    const service = createMinhasRotasService(prisma);
+
+    await expect(service.concluirEntrega('u1', 'e1')).rejects.toBeInstanceOf(ConflictError);
+    expect(prisma.entrega.update).not.toHaveBeenCalled();
+  });
+
+  test('rejeita concluir entrega cancelada', async () => {
+    const prisma = buildPrismaMock();
+    prisma.motorista.findUnique.mockResolvedValue(motoristaFake);
+    prisma.entrega.findUnique.mockResolvedValue({ id: 'e1', status: 'CANCELADA', motoristaId: 'm1' });
+
+    const service = createMinhasRotasService(prisma);
+
+    await expect(service.concluirEntrega('u1', 'e1')).rejects.toBeInstanceOf(ValidationError);
+    expect(prisma.entrega.update).not.toHaveBeenCalled();
+  });
+
+  test('entrega inexistente lança NotFoundError', async () => {
+    const prisma = buildPrismaMock();
+    prisma.motorista.findUnique.mockResolvedValue(motoristaFake);
+    prisma.entrega.findUnique.mockResolvedValue(null);
+
+    const service = createMinhasRotasService(prisma);
+
+    await expect(service.concluirEntrega('u1', 'inexistente')).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  test('usuário sem motorista vinculado não conclui nada', async () => {
+    const prisma = buildPrismaMock();
+    prisma.motorista.findUnique.mockResolvedValue(null);
+
+    const service = createMinhasRotasService(prisma);
+
+    await expect(service.concluirEntrega('u-sem-vinculo', 'e1')).rejects.toBeInstanceOf(ForbiddenError);
+    expect(prisma.entrega.findUnique).not.toHaveBeenCalled();
   });
 });

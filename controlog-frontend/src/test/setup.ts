@@ -41,3 +41,10 @@ window.ResizeObserver = window.ResizeObserver ?? ResizeObserverMock;
 
 // jsdom não implementa scrollIntoView — usado pelo Radix Select.
 Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => {});
+
+// jsdom não implementa a Pointer Capture API, e o Radix Select chama
+// hasPointerCapture no primeiro clique do trigger — sem isso, qualquer teste
+// que abra um Select estoura "target.hasPointerCapture is not a function".
+Element.prototype.hasPointerCapture = Element.prototype.hasPointerCapture ?? (() => false);
+Element.prototype.setPointerCapture = Element.prototype.setPointerCapture ?? (() => {});
+Element.prototype.releasePointerCapture = Element.prototype.releasePointerCapture ?? (() => {});

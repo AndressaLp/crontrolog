@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Calendar, CheckCircle, Clock, MapPin, Package, Truck, XCircle } from 'lucide-react'
-import { useMinhasRotas } from './api'
+import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/api'
+import { useConcluirEntrega, useMinhasRotas } from './api'
 import type { StatusEntrega, StatusRota } from './types'
 
 const filtros: { label: string; valor: StatusRota | 'Todas' }[] = [
@@ -46,9 +48,21 @@ const entregaStatusIcon: Record<StatusEntrega, React.ReactNode> = {
 export default function MinhasRotas() {
   const [filtro, setFiltro] = useState<StatusRota | 'Todas'>('Todas')
   const { data, isLoading, isError } = useMinhasRotas(filtro === 'Todas' ? undefined : filtro)
+  const concluirMutation = useConcluirEntrega()
 
   const rotas = data?.rotas ?? []
   const totalEntregas = rotas.reduce((soma, rota) => soma + rota.entregas.length, 0)
+  const pendentes = rotas.reduce(
+    (soma, rota) => soma + rota.entregas.filter((e) => e.status === 'PENDENTE' || e.status === 'EM_TRANSITO').length,
+    0
+  )
+
+  function handleConcluir(entregaId: string, codigo: string) {
+    concluirMutation
+      .mutateAsync(entregaId)
+      .then(() => toast.success(`Entrega ${codigo} concluída.`))
+      .catch((error) => toast.error(getErrorMessage(error, 'Não foi possível concluir esta entrega.')))
+  }
 
   return (
     <div className="space-y-5">
@@ -58,7 +72,7 @@ export default function MinhasRotas() {
         <h1 className="text-xl font-bold text-gray-800">Minhas Rotas</h1>
         <p className="text-sm text-gray-600">
           {data
-            ? `${data.motorista.nome} — ${rotas.length} rota(s), ${totalEntregas} entrega(s)`
+            ? `${data.motorista.nome} — ${rotas.length} rota(s), ${totalEntregas} entrega(s), ${pendentes} pendente(s)`
             : 'Carregando suas rotas...'}
         </p>
       </div>
@@ -145,12 +159,25 @@ export default function MinhasRotas() {
                         <span className="font-medium text-gray-700 shrink-0">{entrega.codigo}</span>
                         <span className="text-gray-600 min-w-0 flex-1 truncate">{entrega.destino}</span>
                         <span className="text-xs text-gray-600 shrink-0">
-                          {new Date(entrega.dataPrevista).toLocaleDateString('pt-BR')}
+                          {entrega.dataEfetiva
+                            ? `Entregue em ${new Date(entrega.dataEfetiva).toLocaleDateString('pt-BR')}`
+                            : new Date(entrega.dataPrevista).toLocaleDateString('pt-BR')}
                         </span>
                         <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium shrink-0 ${entregaStatusStyle[entrega.status]}`}>
                           {entregaStatusIcon[entrega.status]}
                           {entregaStatusLabel[entrega.status]}
                         </span>
+                        {(entrega.status === 'PENDENTE' || entrega.status === 'EM_TRANSITO') && (
+                          <button
+                            onClick={() => handleConcluir(entrega.id, entrega.codigo)}
+                            disabled={concluirMutation.isPending}
+                            aria-label={`Marcar entrega ${entrega.codigo} como concluída`}
+                            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
+                          >
+                            <CheckCircle size={13} />
+                            Concluir
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>

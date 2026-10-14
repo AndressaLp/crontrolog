@@ -12,6 +12,8 @@ export interface Rota {
   coordenadasDestino: [number, number];
   motorista: { id: string; nome: string };
   veiculo: { id: string; placa: string; modelo: string };
+  totalEntregas: number;
+  entregasPendentes: number;
 }
 
 export interface RotaInput {

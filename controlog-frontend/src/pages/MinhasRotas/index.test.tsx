@@ -8,7 +8,7 @@ import type { MinhasRotasResposta } from './types';
 
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
-  return { ...actual, api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() } };
+  return { ...actual, api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() } };
 });
 const mockedApi = vi.mocked(api, true);
 
@@ -105,5 +105,50 @@ describe('MinhasRotas', () => {
     renderWithProviders(<MinhasRotas />);
 
     expect(await screen.findByText(/Não foi possível carregar suas rotas/)).toBeInTheDocument();
+  });
+
+  test('concluir uma entrega pendente chama a API e mostra o toast', async () => {
+    const user = userEvent.setup();
+    mockedApi.patch.mockResolvedValue({ data: { ...resposta.rotas[0].entregas[0], status: 'ENTREGUE' } });
+    renderWithProviders(<MinhasRotas />);
+    await screen.findByText('RT-001');
+
+    await user.click(screen.getByRole('button', { name: 'Marcar entrega EN-001 como concluída' }));
+
+    await waitFor(() =>
+      expect(mockedApi.patch).toHaveBeenCalledWith('/minhas-rotas/entregas/e1/concluir')
+    );
+    expect(await screen.findByText('Entrega EN-001 concluída.')).toBeInTheDocument();
+  });
+
+  test('entrega já concluída não oferece o botão de concluir', async () => {
+    renderWithProviders(<MinhasRotas />);
+    await screen.findByText('RT-001');
+
+    // EN-002 já está ENTREGUE na resposta de exemplo.
+    expect(
+      screen.queryByRole('button', { name: 'Marcar entrega EN-002 como concluída' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Marcar entrega EN-001 como concluída' })).toBeInTheDocument();
+  });
+
+  test('erro ao concluir mostra a mensagem vinda do backend', async () => {
+    const user = userEvent.setup();
+    mockedApi.patch.mockRejectedValue({
+      isAxiosError: true,
+      response: { data: { message: 'Esta entrega já foi concluída.' } },
+    });
+    renderWithProviders(<MinhasRotas />);
+    await screen.findByText('RT-001');
+
+    await user.click(screen.getByRole('button', { name: 'Marcar entrega EN-001 como concluída' }));
+
+    expect(await screen.findByText('Esta entrega já foi concluída.')).toBeInTheDocument();
+  });
+
+  test('resumo conta as entregas ainda pendentes', async () => {
+    renderWithProviders(<MinhasRotas />);
+
+    expect(await screen.findByText(/2 entrega\(s\), 1 pendente\(s\)/)).toBeInTheDocument();
   });
 });

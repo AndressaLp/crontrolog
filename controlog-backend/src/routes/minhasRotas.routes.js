@@ -11,3 +11,4 @@ const controller = createMinhasRotasController(minhasRotasService);
 export const minhasRotasRouter = Router();
 
 minhasRotasRouter.get('/', validate(listMinhasRotasQuerySchema, 'query'), controller.listar);
+minhasRotasRouter.patch('/entregas/:id/concluir', controller.concluirEntrega);

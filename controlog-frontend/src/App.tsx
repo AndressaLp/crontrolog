@@ -11,6 +11,7 @@ import Entregas    from './pages/Entregas'
 import Veiculos    from './pages/Veiculos'
 import Motoristas  from './pages/Motoristas'
 import Rotas       from './pages/Rotas'
+import Atribuicoes from './pages/Atribuicoes'
 import OtimizacaoRotas from './pages/OtimizacaoRotas'
 import Pedidos from './pages/Pedidos'
 import Planos from './pages/Planos'
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="veiculos"   element={<Veiculos />}   />
             <Route path="motoristas" element={<Motoristas />} />
             <Route path="rotas"      element={<Rotas />}      />
+            <Route path="atribuicoes" element={<Atribuicoes />} />
             <Route path="otimizacao-rotas" element={<OtimizacaoRotas />} />
             <Route path="pedidos" element={<Pedidos />} />
             <Route path="planos" element={<Planos />} />

@@ -19,6 +19,7 @@ import Planos from '@/pages/Planos';
 import PlanoDetalhe from '@/pages/PlanoDetalhe';
 import Relatorios from '@/pages/Relatorios';
 import MinhasRotas from '@/pages/MinhasRotas';
+import Atribuicoes from '@/pages/Atribuicoes';
 import { useAuthStore } from '@/stores/authStore';
 
 vi.mock('@/lib/api', async (importOriginal) => {
@@ -147,6 +148,45 @@ describe('acessibilidade (regressão estrutural)', () => {
 
     const { container, findByText } = renderWithProviders(<MinhasRotas />, { route: '/minhas-rotas' });
     await findByText('RT-001');
+    await expect(axe(container)).resolves.toHaveNoViolations();
+  });
+
+  test('Atribuição de Rotas (lista vazia) não tem violações de acessibilidade', async () => {
+    const { container, findByText } = renderWithProviders(<Atribuicoes />, { route: '/atribuicoes' });
+    await findByText(/Nenhuma rota aprovada para este filtro/);
+    await expect(axe(container)).resolves.toHaveNoViolations();
+  });
+
+  test('Atribuição de Rotas — modal de atribuir não tem violações de acessibilidade', async () => {
+    const user = userEvent.setup();
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/rotas') {
+        return Promise.resolve({
+          data: paginated([
+            {
+              id: 'r1',
+              codigo: 'RT-001',
+              origem: 'Centro de Distribuição',
+              destino: 'Centro',
+              status: 'ATIVA',
+              dataHora: '2026-10-15T08:00:00.000Z',
+              criadoEm: '2026-10-14T08:00:00.000Z',
+              coordenadasOrigem: [-26.3045, -48.8487],
+              coordenadasDestino: [-26.28, -48.84],
+              motorista: { id: 'm1', nome: 'Carlos Silva' },
+              veiculo: { id: 'v1', placa: 'ABC-1234', modelo: 'Mercedes Sprinter' },
+              totalEntregas: 2,
+              entregasPendentes: 1,
+            },
+          ]),
+        });
+      }
+      return Promise.resolve({ data: paginated([]) });
+    });
+
+    const { container, findByRole } = renderWithProviders(<Atribuicoes />, { route: '/atribuicoes' });
+    await user.click(await findByRole('button', { name: 'Atribuir RT-001' }));
+    await findByRole('dialog');
     await expect(axe(container)).resolves.toHaveNoViolations();
   });
 
