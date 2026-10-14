@@ -4,7 +4,7 @@ Sistema de gestão logística para pequenas e médias empresas de transporte, co
 
 Este é o repositório do projeto de portfólio desenvolvido para a disciplina de Engenharia de Software (Católica SC). A especificação completa — contexto, personas, requisitos funcionais/não funcionais, regras de negócio e arquitetura — está no RFC do projeto.
 
-**🌐 Em produção:** [controlog-frontend.vercel.app](https://controlog-frontend.vercel.app) _(atualizar após o primeiro deploy)_ — login de teste `gestor@controlog.com` / `controlog123`.
+**🌐 Em produção:** [controlog-frontend.vercel.app](https://controlog-frontend.vercel.app) — login de teste `gestor@controlog.com` / `controlog123`.
 
 ---
 

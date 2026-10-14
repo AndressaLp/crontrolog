@@ -7,8 +7,8 @@ o ambiente de produção na Vercel + Neon.
 
 | Serviço | URL |
 |---|---|
-| Frontend | https://controlog-frontend.vercel.app _(atualizar após o primeiro deploy)_ |
-| Backend (API) | https://controlog-backend.vercel.app _(atualizar após o primeiro deploy)_ |
+| Frontend | https://controlog-frontend.vercel.app |
+| Backend (API) | https://controlog-backend.vercel.app |
 | Health check | https://controlog-backend.vercel.app/health |
 
 Login de teste: `gestor@controlog.com` / `controlog123`.
