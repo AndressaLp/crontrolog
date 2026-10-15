@@ -37,6 +37,6 @@ describe('App', () => {
       </QueryClientProvider>
     );
 
-    expect(await screen.findByText('Controlog v1.0')).toBeInTheDocument();
+    expect(await screen.findByText(/^Controlog v\d+\.\d+\.\d+$/)).toBeInTheDocument();
   });
 });

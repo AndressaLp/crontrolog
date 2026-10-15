@@ -1,10 +1,16 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { version } from './package.json'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // A versão exibida na interface vem do package.json, pra não ficar defasada
+  // a cada release (ficou em "v1.0" até a 1.3.0 por ser escrita na mão).
+  define: {
+    APP_VERSION: JSON.stringify(version),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
