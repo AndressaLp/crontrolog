@@ -3,6 +3,11 @@ import { createMotoristaService } from '../src/services/motorista.service.js';
 import { ConflictError, NotFoundError } from '../src/utils/AppError.js';
 
 function buildPrismaMock() {
+  const tx = {
+    usuario: { create: jest.fn() },
+    motorista: { update: jest.fn() },
+  };
+
   return {
     motorista: {
       findMany: jest.fn(),
@@ -12,8 +17,11 @@ function buildPrismaMock() {
       delete: jest.fn(),
       count: jest.fn(),
     },
+    usuario: { findUnique: jest.fn() },
     rota: { count: jest.fn() },
     entrega: { count: jest.fn() },
+    $transaction: jest.fn(async (fn) => fn(tx)),
+    _tx: tx,
   };
 }
 
@@ -163,6 +171,102 @@ describe('motorista.service', () => {
     const motorista = await service.update('m1', { nome: 'Carlos S. Silva' });
 
     expect(motorista.nome).toBe('Carlos S. Silva');
+  });
+
+  test('criarAcesso cria usuário MOTORISTA e vincula ao motorista', async () => {
+    const prisma = buildPrismaMock();
+    prisma.motorista.findUnique
+      .mockResolvedValueOnce({ id: 'm1', nome: 'Marcos Oliveira', usuarioId: null })
+      .mockResolvedValueOnce({
+        id: 'm1',
+        nome: 'Marcos Oliveira',
+        cnh: '1',
+        telefone: '1',
+        status: 'ATIVO',
+        criadoEm: new Date(),
+        usuario: { email: 'marcos@controlog.com' },
+      });
+    prisma.usuario.findUnique.mockResolvedValue(null);
+    prisma._tx.usuario.create.mockResolvedValue({ id: 'u1' });
+    prisma.rota.count.mockResolvedValue(0);
+    prisma.entrega.count.mockResolvedValue(0);
+
+    const service = createMotoristaService(prisma);
+    const motorista = await service.criarAcesso('m1', {
+      email: 'marcos@controlog.com',
+      senha: 'senha12345',
+    });
+
+    expect(prisma._tx.usuario.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        nome: 'Marcos Oliveira',
+        email: 'marcos@controlog.com',
+        perfil: 'MOTORISTA',
+      }),
+    });
+    // A senha nunca é gravada em texto puro.
+    expect(prisma._tx.usuario.create.mock.calls[0][0].data.senhaHash).not.toBe('senha12345');
+    expect(prisma._tx.motorista.update).toHaveBeenCalledWith({
+      where: { id: 'm1' },
+      data: { usuarioId: 'u1' },
+    });
+    expect(motorista.acessoEmail).toBe('marcos@controlog.com');
+  });
+
+  test('criarAcesso rejeita motorista que já tem acesso', async () => {
+    const prisma = buildPrismaMock();
+    prisma.motorista.findUnique.mockResolvedValue({ id: 'm1', nome: 'Marcos', usuarioId: 'u1' });
+
+    const service = createMotoristaService(prisma);
+
+    await expect(
+      service.criarAcesso('m1', { email: 'x@y.com', senha: 'senha12345' })
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  test('criarAcesso rejeita e-mail já usado por outro usuário', async () => {
+    const prisma = buildPrismaMock();
+    prisma.motorista.findUnique.mockResolvedValue({ id: 'm1', nome: 'Marcos', usuarioId: null });
+    prisma.usuario.findUnique.mockResolvedValue({ id: 'u9', email: 'x@y.com' });
+
+    const service = createMotoristaService(prisma);
+
+    await expect(
+      service.criarAcesso('m1', { email: 'x@y.com', senha: 'senha12345' })
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  test('criarAcesso lança NotFoundError para motorista inexistente', async () => {
+    const prisma = buildPrismaMock();
+    prisma.motorista.findUnique.mockResolvedValue(null);
+
+    const service = createMotoristaService(prisma);
+
+    await expect(
+      service.criarAcesso('inexistente', { email: 'x@y.com', senha: 'senha12345' })
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  test('getById expõe acessoEmail null quando o motorista não tem login', async () => {
+    const prisma = buildPrismaMock();
+    prisma.motorista.findUnique.mockResolvedValue({
+      id: 'm1',
+      nome: 'Carlos Silva',
+      cnh: '1',
+      telefone: '1',
+      status: 'ATIVO',
+      criadoEm: new Date(),
+      usuario: null,
+    });
+    prisma.rota.count.mockResolvedValue(0);
+    prisma.entrega.count.mockResolvedValue(0);
+
+    const service = createMotoristaService(prisma);
+    const motorista = await service.getById('m1');
+
+    expect(motorista.acessoEmail).toBeNull();
   });
 
   test('getById calcula emRota=true quando existe rota ativa', async () => {

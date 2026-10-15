@@ -4,7 +4,7 @@ Sistema de gestão logística para pequenas e médias empresas de transporte, co
 
 Este é o repositório do projeto de portfólio desenvolvido para a disciplina de Engenharia de Software (Católica SC). A especificação completa — contexto, personas, requisitos funcionais/não funcionais, regras de negócio e arquitetura — está no RFC do projeto.
 
-**🌐 Em produção:** [controlog-frontend-production.up.railway.app](https://controlog-frontend-production.up.railway.app) — login de teste `gestor@controlog.com` / `controlog123`.
+**🌐 Em produção:** [controlog-frontend.vercel.app](https://controlog-frontend.vercel.app) — login de teste `gestor@controlog.com` / `controlog123`.
 
 ---
 
@@ -18,6 +18,9 @@ O Controlog substitui o controle de rotas e entregas feito hoje em planilhas e W
 * Relatórios filtráveis por período, com motoristas mais ativos e distribuição por status
 * Visualização de rotas em mapa interativo (origem/destino)
 * Simulador de otimização de rotas: gera pedidos fictícios, permite selecioná-los por polígono desenhado no mapa e organizá-los em múltiplas rotas (cada uma com cor, veículo e status próprios), calcula a melhor ordem de entrega de cada rota e desenha o traçado real pelas ruas (via OpenRouteService, com fallback em linha reta)
+* Acesso de motorista: o gestor cria o login de um motorista já cadastrado, e quem entra com esse perfil vê apenas uma tela — "Minhas Rotas" —, com as rotas atribuídas a ele e as entregas de cada uma, podendo marcar cada entrega como concluída (separação aplicada no backend por perfil, não só escondida na interface)
+* Atribuição de rotas: tela de gestão com as rotas aprovadas, quantas entregas cada uma tem (e quantas seguem pendentes), quem é o responsável atual e a carga da equipe — trocar o motorista de uma rota leva as entregas dela junto
+* Planejamento de pedidos: gera pedidos fictícios persistidos, seleciona vários de uma vez pra montar um plano nomeado, divide os pedidos do plano em rotas automaticamente por um tamanho máximo informado e exibe cada rota otimizada num mapa com o traçado real pelas ruas (mesma integração com a OpenRouteService da Otimização de Rotas); o agrupamento automático pode ser ajustado à mão desenhando um polígono no mapa — a seleção vira uma rota nova, é movida para outra rota ou é desatribuída —, e cada rota pode ser aprovada a critério do usuário, virando uma Rota real (com código sequencial RT-XXX) e uma Entrega por pedido, aparecendo na página de Rotas junto de Dashboard/Relatórios
 
 ---
 
@@ -89,7 +92,9 @@ npm run prisma:seed   # cria dados de exemplo e um usuário gestor de teste
 npm run dev           # http://localhost:3333
 ```
 
-Login de teste criado pelo seed: `gestor@controlog.com` / `controlog123`.
+Logins de teste criados pelo seed (senha `controlog123` nos dois):
+`gestor@controlog.com` (perfil `GESTOR`, acesso completo) e `motorista@controlog.com`
+(perfil `MOTORISTA`, só a tela "Minhas Rotas").
 
 Detalhes completos (variáveis de ambiente, endpoints, regras de negócio implementadas) em [`controlog-backend/README.md`](controlog-backend/README.md).
 
@@ -135,14 +140,19 @@ escopo em [`docs/AUDITORIA_ACESSIBILIDADE.md`](docs/AUDITORIA_ACESSIBILIDADE.md)
 
 ## 🚀 Deploy
 
-O projeto está publicado no **Railway** — frontend, backend e PostgreSQL rodando como
-três serviços no mesmo projeto (não usamos Vercel/Netlify/Firebase/Render, plataformas
-otimizadas só para frontend estático e fora de escopo para este trabalho a partir de
-2026-02). Migrations rodam automaticamente a cada deploy do backend.
+O projeto está publicado na **Vercel** — frontend e backend como dois projetos
+separados (o backend roda como Serverless Function, embrulhando o mesmo Express de
+sempre), com o banco PostgreSQL no **Neon**. Migrations rodam automaticamente a cada
+build do backend.
+
+> Nota: a partir de 2026-02 a disciplina passou a não aceitar hospedagem em
+> plataformas otimizadas só para frontend estático (Vercel/Netlify/Firebase/Render) —
+> essa restrição formalmente continua valendo; a migração para Vercel foi uma decisão
+> consciente do autor do projeto.
 
 CI/CD: todo `push`/PR para `main` roda os testes de backend e frontend via GitHub
-Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)); cada serviço no
-Railway está conectado ao repositório e faz deploy automático quando sua respectiva
+Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)); os dois projetos na
+Vercel estão conectados ao repositório e fazem deploy automático quando sua respectiva
 pasta muda em `main`. Detalhes completos, variáveis de ambiente e passo a passo para
 reproduzir em [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
@@ -154,7 +164,7 @@ O repositório segue o modelo **Git Flow**:
 
 | Branch | Propósito |
 |---|---|
-| `main` | Produção — só recebe merge de `release/*` ou `hotfix/*`. Dispara o deploy automático (Railway). |
+| `main` | Produção — só recebe merge de `release/*` ou `hotfix/*`. Dispara o deploy automático (Vercel). |
 | `develop` | Integração — base para novas features, sempre com o estado mais recente pronto para o próximo release. |
 | `feature/nome-da-feature` | Uma funcionalidade em desenvolvimento, criada a partir de `develop`, mesclada de volta nela. |
 | `release/x.y.z` | Estabilização de uma versão antes de publicar — criada a partir de `develop`, mesclada em `main` **e** `develop`. |

@@ -26,5 +26,10 @@ export function createMotoristaController(motoristaService) {
       await motoristaService.remove(req.params.id);
       res.status(204).send();
     }),
+
+    criarAcesso: asyncHandler(async (req, res) => {
+      const motorista = await motoristaService.criarAcesso(req.params.id, req.body);
+      res.status(201).json(motorista);
+    }),
   };
 }

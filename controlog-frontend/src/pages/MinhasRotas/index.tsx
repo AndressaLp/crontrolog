@@ -1,0 +1,193 @@
+import { useState } from 'react'
+import { Calendar, CheckCircle, Clock, MapPin, Package, Truck, XCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/api'
+import { useConcluirEntrega, useMinhasRotas } from './api'
+import type { StatusEntrega, StatusRota } from './types'
+
+const filtros: { label: string; valor: StatusRota | 'Todas' }[] = [
+  { label: 'Todas',      valor: 'Todas' },
+  { label: 'Ativas',     valor: 'ATIVA' },
+  { label: 'Concluídas', valor: 'CONCLUIDA' },
+  { label: 'Canceladas', valor: 'CANCELADA' },
+]
+
+const rotaStatusStyle: Record<StatusRota, string> = {
+  ATIVA:      'bg-blue-100 text-blue-700',
+  CONCLUIDA:  'bg-green-100 text-green-700',
+  CANCELADA:  'bg-gray-100 text-gray-700',
+}
+
+const rotaStatusLabel: Record<StatusRota, string> = {
+  ATIVA: 'Ativa',
+  CONCLUIDA: 'Concluída',
+  CANCELADA: 'Cancelada',
+}
+
+const entregaStatusStyle: Record<StatusEntrega, string> = {
+  PENDENTE:    'bg-yellow-100 text-yellow-700',
+  EM_TRANSITO: 'bg-blue-100 text-blue-700',
+  ENTREGUE:    'bg-green-100 text-green-700',
+  CANCELADA:   'bg-red-100 text-red-700',
+}
+
+const entregaStatusLabel: Record<StatusEntrega, string> = {
+  PENDENTE: 'Pendente',
+  EM_TRANSITO: 'Em trânsito',
+  ENTREGUE: 'Entregue',
+  CANCELADA: 'Cancelada',
+}
+
+const entregaStatusIcon: Record<StatusEntrega, React.ReactNode> = {
+  PENDENTE:    <Clock size={13} />,
+  EM_TRANSITO: <Truck size={13} />,
+  ENTREGUE:    <CheckCircle size={13} />,
+  CANCELADA:   <XCircle size={13} />,
+}
+
+export default function MinhasRotas() {
+  const [filtro, setFiltro] = useState<StatusRota | 'Todas'>('Todas')
+  const { data, isLoading, isError } = useMinhasRotas(filtro === 'Todas' ? undefined : filtro)
+  const concluirMutation = useConcluirEntrega()
+
+  const rotas = data?.rotas ?? []
+  const totalEntregas = rotas.reduce((soma, rota) => soma + rota.entregas.length, 0)
+  const pendentes = rotas.reduce(
+    (soma, rota) => soma + rota.entregas.filter((e) => e.status === 'PENDENTE' || e.status === 'EM_TRANSITO').length,
+    0
+  )
+
+  function handleConcluir(entregaId: string, codigo: string) {
+    concluirMutation
+      .mutateAsync(entregaId)
+      .then(() => toast.success(`Entrega ${codigo} concluída.`))
+      .catch((error) => toast.error(getErrorMessage(error, 'Não foi possível concluir esta entrega.')))
+  }
+
+  return (
+    <div className="space-y-5">
+
+      {/* ── Cabeçalho ── */}
+      <div>
+        <h1 className="text-xl font-bold text-gray-800">Minhas Rotas</h1>
+        <p className="text-sm text-gray-600">
+          {data
+            ? `${data.motorista.nome} — ${rotas.length} rota(s), ${totalEntregas} entrega(s), ${pendentes} pendente(s)`
+            : 'Carregando suas rotas...'}
+        </p>
+      </div>
+
+      {/* ── Filtros ── */}
+      <div className="bg-white rounded-xl shadow-sm p-4 flex gap-2 flex-wrap">
+        {filtros.map(({ label, valor }) => (
+          <button
+            key={valor}
+            onClick={() => setFiltro(valor)}
+            className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors border ${
+              filtro === valor
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400 hover:text-blue-600'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Rotas ── */}
+      {isLoading ? (
+        <div className="bg-white rounded-xl shadow-sm px-6 py-12 text-center text-gray-600 text-sm">
+          Carregando suas rotas...
+        </div>
+      ) : isError ? (
+        <div className="bg-white rounded-xl shadow-sm px-6 py-12 text-center text-gray-600 text-sm">
+          Não foi possível carregar suas rotas. Tente novamente em alguns instantes.
+        </div>
+      ) : rotas.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm px-6 py-12 text-center text-gray-600 text-sm">
+          Nenhuma rota atribuída a você para este filtro.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {rotas.map((rota) => (
+            <section key={rota.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
+
+              <header className="p-5 border-b border-gray-100 flex flex-wrap items-start gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-semibold text-gray-800">{rota.codigo}</h2>
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${rotaStatusStyle[rota.status]}`}>
+                      {rotaStatusLabel[rota.status]}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1 flex items-center gap-1.5">
+                    <MapPin size={14} className="text-blue-500 shrink-0" />
+                    <span className="truncate">{rota.origem} → {rota.destino}</span>
+                  </p>
+                </div>
+
+                <div className="ml-auto flex flex-wrap items-center gap-4 text-xs text-gray-600">
+                  <span className="flex items-center gap-1.5">
+                    <Calendar size={14} className="text-blue-500" />
+                    {new Date(rota.dataHora).toLocaleString('pt-BR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <Truck size={14} className="text-blue-500" />
+                    {rota.veiculo.placa} — {rota.veiculo.modelo}
+                  </span>
+                </div>
+              </header>
+
+              <div className="p-5">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-3 flex items-center gap-1.5">
+                  <Package size={14} className="text-blue-500" />
+                  {rota.entregas.length} entrega(s)
+                </h3>
+
+                {rota.entregas.length === 0 ? (
+                  <p className="text-sm text-gray-600">Esta rota ainda não tem entregas vinculadas.</p>
+                ) : (
+                  <ul className="divide-y divide-gray-100">
+                    {rota.entregas.map((entrega) => (
+                      <li key={entrega.id} className="py-2.5 flex flex-wrap items-center gap-3 text-sm">
+                        <span className="font-medium text-gray-700 shrink-0">{entrega.codigo}</span>
+                        <span className="text-gray-600 min-w-0 flex-1 truncate">{entrega.destino}</span>
+                        <span className="text-xs text-gray-600 shrink-0">
+                          {entrega.dataEfetiva
+                            ? `Entregue em ${new Date(entrega.dataEfetiva).toLocaleDateString('pt-BR')}`
+                            : new Date(entrega.dataPrevista).toLocaleDateString('pt-BR')}
+                        </span>
+                        <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium shrink-0 ${entregaStatusStyle[entrega.status]}`}>
+                          {entregaStatusIcon[entrega.status]}
+                          {entregaStatusLabel[entrega.status]}
+                        </span>
+                        {(entrega.status === 'PENDENTE' || entrega.status === 'EM_TRANSITO') && (
+                          <button
+                            onClick={() => handleConcluir(entrega.id, entrega.codigo)}
+                            disabled={concluirMutation.isPending}
+                            aria-label={`Marcar entrega ${entrega.codigo} como concluída`}
+                            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
+                          >
+                            <CheckCircle size={13} />
+                            Concluir
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

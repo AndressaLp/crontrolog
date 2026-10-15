@@ -9,6 +9,13 @@ export const createMotoristaSchema = z.object({
 
 export const updateMotoristaSchema = createMotoristaSchema.partial();
 
+// Acesso criado por um gestor para um motorista já cadastrado — o nome do
+// usuário vem do próprio cadastro do motorista, então não é informado aqui.
+export const criarAcessoMotoristaSchema = z.object({
+  email: z.string().trim().toLowerCase().email('E-mail inválido.'),
+  senha: z.string().min(8, 'Senha deve ter ao menos 8 caracteres.'),
+});
+
 export const listMotoristasQuerySchema = z.object({
   busca: z.string().trim().optional(),
   status: z.enum(['ATIVO', 'INATIVO']).optional(),

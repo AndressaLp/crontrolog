@@ -128,3 +128,14 @@
     @apply font-sans;
     }
 }
+
+/* O Leaflet usa z-index alto nos próprios elementos — 400 nos painéis do mapa
+   e 1000 nos controles de zoom —, que competiam com o z-50 dos modais e
+   deixavam o mapa por cima deles. Um z-index explícito no container cria um
+   contexto de empilhamento, prendendo esses valores dentro do mapa em vez de
+   soltá-los na pilha da página. Fica fora de @layer de propósito: precisa
+   vencer as utilitárias do Tailwind aplicadas ao container. */
+.leaflet-container {
+  position: relative;
+  z-index: 0;
+}

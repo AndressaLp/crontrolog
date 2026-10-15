@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/stores/authStore';
 import { getErrorMessage } from '@/lib/api';
+import { rotaInicialPorPerfil } from '@/lib/perfil';
 
 const loginSchema = z.object({
   email: z.string().trim().email('Informe um e-mail válido.'),
@@ -20,6 +21,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export default function Login() {
   const accessToken = useAuthStore((s) => s.accessToken);
+  const usuario = useAuthStore((s) => s.usuario);
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
   const location = useLocation();
@@ -32,15 +34,19 @@ export default function Login() {
   } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
 
   if (accessToken) {
-    const from = (location.state as { from?: Location })?.from?.pathname ?? '/';
-    return <Navigate to={from} replace />;
+    const from = (location.state as { from?: Location })?.from?.pathname;
+    return <Navigate to={from ?? rotaInicialPorPerfil(usuario?.perfil)} replace />;
   }
 
   const onSubmit = async (data: LoginForm) => {
     setSubmitting(true);
     try {
       await login(data.email, data.senha);
-      navigate('/', { replace: true });
+      // O perfil só é conhecido depois do login, por isso lido do store em vez
+      // do `usuario` capturado no render — um motorista cai direto na visão
+      // dele, que é a única página que o perfil abre.
+      const perfil = useAuthStore.getState().usuario?.perfil;
+      navigate(rotaInicialPorPerfil(perfil), { replace: true });
     } catch (error) {
       toast.error(getErrorMessage(error, 'E-mail ou senha inválidos.'));
     } finally {

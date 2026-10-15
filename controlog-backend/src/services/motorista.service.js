@@ -1,5 +1,12 @@
+import bcrypt from 'bcryptjs';
 import { ConflictError, NotFoundError } from '../utils/AppError.js';
 import { paginationArgs, paginationMeta } from '../utils/pagination.js';
+
+// Mesmo fator de custo usado no cadastro de qualquer outro usuário
+// (src/services/auth.service.js).
+const SALT_ROUNDS = 12;
+
+const includeUsuario = { usuario: { select: { email: true } } };
 
 function toResponse(motorista, extras = {}) {
   return {
@@ -9,6 +16,7 @@ function toResponse(motorista, extras = {}) {
     telefone: motorista.telefone,
     status: motorista.status,
     criadoEm: motorista.criadoEm,
+    acessoEmail: motorista.usuario?.email ?? null,
     ...extras,
   };
 }
@@ -32,7 +40,12 @@ export function createMotoristaService(prisma) {
       };
 
       const [motoristas, total] = await Promise.all([
-        prisma.motorista.findMany({ where, orderBy: { nome: 'asc' }, ...paginationArgs({ page, pageSize }) }),
+        prisma.motorista.findMany({
+          where,
+          include: includeUsuario,
+          orderBy: { nome: 'asc' },
+          ...paginationArgs({ page, pageSize }),
+        }),
         prisma.motorista.count({ where }),
       ]);
 
@@ -50,7 +63,7 @@ export function createMotoristaService(prisma) {
     },
 
     async getById(id) {
-      const motorista = await prisma.motorista.findUnique({ where: { id } });
+      const motorista = await prisma.motorista.findUnique({ where: { id }, include: includeUsuario });
       if (!motorista) throw new NotFoundError('Motorista não encontrado.');
 
       const [rotasAtivas, entregasRealizadas] = await Promise.all([
@@ -72,6 +85,34 @@ export function createMotoristaService(prisma) {
 
       const motorista = await prisma.motorista.update({ where: { id }, data });
       return this.getById(motorista.id);
+    },
+
+    // Cria o login de um motorista já cadastrado. Fica aqui (e não no
+    // auth.service) porque é uma ação administrativa sobre o motorista, não um
+    // autocadastro: quem chama é um gestor, e o perfil MOTORISTA nunca é
+    // atribuível pelo /auth/register público.
+    async criarAcesso(id, { email, senha }) {
+      const motorista = await prisma.motorista.findUnique({ where: { id } });
+      if (!motorista) throw new NotFoundError('Motorista não encontrado.');
+      if (motorista.usuarioId) {
+        throw new ConflictError('Este motorista já possui acesso ao sistema.');
+      }
+
+      const emailEmUso = await prisma.usuario.findUnique({ where: { email } });
+      if (emailEmUso) {
+        throw new ConflictError('Já existe um usuário cadastrado com este e-mail.');
+      }
+
+      const senhaHash = await bcrypt.hash(senha, SALT_ROUNDS);
+
+      await prisma.$transaction(async (tx) => {
+        const usuario = await tx.usuario.create({
+          data: { nome: motorista.nome, email, senhaHash, perfil: 'MOTORISTA' },
+        });
+        await tx.motorista.update({ where: { id }, data: { usuarioId: usuario.id } });
+      });
+
+      return this.getById(id);
     },
 
     // RN03 — Não é possível excluir um motorista que possui rotas ativas vinculadas

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { api } from '@/lib/api';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { paginated } from '@/test/paginated';
+import { useAuthStore } from '@/stores/authStore';
 import Motoristas from './index';
 import type { Motorista } from './types';
 
@@ -22,10 +23,17 @@ const carlos: Motorista = {
   emRota: true,
   entregasRealizadas: 42,
   criadoEm: new Date().toISOString(),
+  acessoEmail: null,
 };
+
+const gestorLogado = () =>
+  useAuthStore.setState({
+    usuario: { id: 'u1', nome: 'Ricardo', email: 'gestor@controlog.com', perfil: 'GESTOR' },
+  });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useAuthStore.setState({ usuario: null, accessToken: null, refreshToken: null });
   mockedApi.get.mockResolvedValue({ data: paginated([carlos]) });
 });
 
@@ -117,6 +125,55 @@ describe('Motoristas', () => {
         expect.objectContaining({ params: expect.objectContaining({ page: 1, busca: 'ana' }) })
       )
     );
+  });
+
+  test('gestor cria o acesso de um motorista sem login', async () => {
+    const user = userEvent.setup();
+    gestorLogado();
+    mockedApi.post.mockResolvedValue({ data: { ...carlos, acessoEmail: 'carlos@controlog.com' } });
+
+    renderWithProviders(<Motoristas />);
+    await screen.findByText('Carlos Silva');
+
+    await user.click(screen.getByRole('button', { name: 'Criar acesso para Carlos Silva' }));
+    await user.type(screen.getByPlaceholderText('motorista@empresa.com'), 'carlos@controlog.com');
+    await user.type(screen.getByPlaceholderText('Ao menos 8 caracteres'), 'senha12345');
+    await user.click(screen.getByRole('button', { name: 'Criar acesso' }));
+
+    await waitFor(() =>
+      expect(mockedApi.post).toHaveBeenCalledWith('/motoristas/m1/acesso', {
+        email: 'carlos@controlog.com',
+        senha: 'senha12345',
+      })
+    );
+    expect(await screen.findByText('Acesso criado para Carlos Silva.')).toBeInTheDocument();
+  });
+
+  test('operador não vê a ação de criar acesso', async () => {
+    useAuthStore.setState({
+      usuario: { id: 'u2', nome: 'Juliana', email: 'op@controlog.com', perfil: 'OPERADOR' },
+    });
+
+    renderWithProviders(<Motoristas />);
+    await screen.findByText('Carlos Silva');
+
+    expect(
+      screen.queryByRole('button', { name: 'Criar acesso para Carlos Silva' })
+    ).not.toBeInTheDocument();
+  });
+
+  test('motorista que já tem acesso não mostra a ação de criar acesso', async () => {
+    gestorLogado();
+    mockedApi.get.mockResolvedValue({
+      data: paginated([{ ...carlos, acessoEmail: 'carlos@controlog.com' }]),
+    });
+
+    renderWithProviders(<Motoristas />);
+    await screen.findByText('Carlos Silva');
+
+    expect(
+      screen.queryByRole('button', { name: 'Criar acesso para Carlos Silva' })
+    ).not.toBeInTheDocument();
   });
 
   test('abre o formulário em modo edição ao clicar em editar', async () => {

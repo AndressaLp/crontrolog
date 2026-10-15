@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type PaginatedResponse } from '@/lib/api';
-import type { Motorista, MotoristaInput, StatusMotorista } from './types';
+import type { AcessoMotoristaInput, Motorista, MotoristaInput, StatusMotorista } from './types';
 
 interface ListParams {
   busca?: string;
@@ -30,6 +30,15 @@ export function useUpdateMotorista() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<MotoristaInput> }) =>
       (await api.put<Motorista>(`/motoristas/${id}`, data)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['motoristas'] }),
+  });
+}
+
+export function useCriarAcessoMotorista() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: AcessoMotoristaInput }) =>
+      (await api.post<Motorista>(`/motoristas/${id}/acesso`, data)).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['motoristas'] }),
   });
 }

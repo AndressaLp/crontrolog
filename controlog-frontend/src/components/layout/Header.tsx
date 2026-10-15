@@ -3,12 +3,14 @@ import { Bell, LogOut, UserCircle } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 
 const pageTitles: Record<string, string> = {
-  '/':           'Dashboard',
-  '/entregas':   'Entregas',
-  '/veiculos':   'Veículos',
-  '/motoristas': 'Motoristas',
-  '/rotas':      'Rotas',
-  '/relatorios': 'Relatórios',
+  '/':              'Dashboard',
+  '/entregas':      'Entregas',
+  '/veiculos':      'Veículos',
+  '/motoristas':    'Motoristas',
+  '/rotas':         'Rotas',
+  '/atribuicoes':   'Atribuição de Rotas',
+  '/relatorios':    'Relatórios',
+  '/minhas-rotas':  'Minhas Rotas',
 }
 
 export default function Header() {

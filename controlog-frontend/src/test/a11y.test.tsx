@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
+import { Route, Routes } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { axe } from './axeHelper';
 import { renderWithProviders } from './renderWithProviders';
@@ -13,7 +14,13 @@ import Veiculos from '@/pages/Veiculos';
 import Entregas from '@/pages/Entregas';
 import Rotas from '@/pages/Rotas';
 import OtimizacaoRotas from '@/pages/OtimizacaoRotas';
+import Pedidos from '@/pages/Pedidos';
+import Planos from '@/pages/Planos';
+import PlanoDetalhe from '@/pages/PlanoDetalhe';
 import Relatorios from '@/pages/Relatorios';
+import MinhasRotas from '@/pages/MinhasRotas';
+import Atribuicoes from '@/pages/Atribuicoes';
+import { useAuthStore } from '@/stores/authStore';
 
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
@@ -23,6 +30,7 @@ const mockedApi = vi.mocked(api, true);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useAuthStore.setState({ usuario: null, accessToken: null, refreshToken: null });
   mockedApi.get.mockResolvedValue({ data: paginated([]) });
 });
 
@@ -75,6 +83,113 @@ describe('acessibilidade (regressão estrutural)', () => {
     await expect(axe(container)).resolves.toHaveNoViolations();
   });
 
+  test('Motoristas — modal Criar acesso não tem violações de acessibilidade', async () => {
+    const user = userEvent.setup();
+    useAuthStore.setState({
+      usuario: { id: 'u1', nome: 'Ricardo', email: 'gestor@controlog.com', perfil: 'GESTOR' },
+    });
+    mockedApi.get.mockResolvedValue({
+      data: paginated([
+        {
+          id: 'm1',
+          nome: 'Carlos Silva',
+          cnh: '12345678901',
+          telefone: '(47) 99111-1111',
+          status: 'ATIVO',
+          emRota: false,
+          entregasRealizadas: 0,
+          criadoEm: new Date().toISOString(),
+          acessoEmail: null,
+        },
+      ]),
+    });
+
+    const { container, findByRole } = renderWithProviders(<Motoristas />);
+    await user.click(await findByRole('button', { name: 'Criar acesso para Carlos Silva' }));
+    await findByRole('dialog');
+    await expect(axe(container)).resolves.toHaveNoViolations();
+  });
+
+  test('Minhas Rotas (visão do motorista) não tem violações de acessibilidade', async () => {
+    mockedApi.get.mockResolvedValue({
+      data: {
+        motorista: {
+          id: 'm1',
+          nome: 'Marcos Oliveira',
+          cnh: '67890123456',
+          telefone: '(47) 99666-6666',
+          status: 'ATIVO',
+        },
+        rotas: [
+          {
+            id: 'r1',
+            codigo: 'RT-001',
+            origem: 'Centro de Distribuição',
+            destino: 'Centro',
+            status: 'ATIVA',
+            dataHora: '2026-10-14T08:00:00.000Z',
+            coordenadasOrigem: [-26.3045, -48.8487],
+            coordenadasDestino: [-26.28, -48.84],
+            veiculo: { id: 'v1', placa: 'ABC-1234', modelo: 'Mercedes Sprinter' },
+            entregas: [
+              {
+                id: 'e1',
+                codigo: 'EN-001',
+                destino: 'Rua das Flores, 100',
+                status: 'PENDENTE',
+                dataPrevista: '2026-10-14T08:00:00.000Z',
+                dataEfetiva: null,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const { container, findByText } = renderWithProviders(<MinhasRotas />, { route: '/minhas-rotas' });
+    await findByText('RT-001');
+    await expect(axe(container)).resolves.toHaveNoViolations();
+  });
+
+  test('Atribuição de Rotas (lista vazia) não tem violações de acessibilidade', async () => {
+    const { container, findByText } = renderWithProviders(<Atribuicoes />, { route: '/atribuicoes' });
+    await findByText(/Nenhuma rota aprovada para este filtro/);
+    await expect(axe(container)).resolves.toHaveNoViolations();
+  });
+
+  test('Atribuição de Rotas — modal de atribuir não tem violações de acessibilidade', async () => {
+    const user = userEvent.setup();
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/rotas') {
+        return Promise.resolve({
+          data: paginated([
+            {
+              id: 'r1',
+              codigo: 'RT-001',
+              origem: 'Centro de Distribuição',
+              destino: 'Centro',
+              status: 'ATIVA',
+              dataHora: '2026-10-15T08:00:00.000Z',
+              criadoEm: '2026-10-14T08:00:00.000Z',
+              coordenadasOrigem: [-26.3045, -48.8487],
+              coordenadasDestino: [-26.28, -48.84],
+              motorista: { id: 'm1', nome: 'Carlos Silva' },
+              veiculo: { id: 'v1', placa: 'ABC-1234', modelo: 'Mercedes Sprinter' },
+              totalEntregas: 2,
+              entregasPendentes: 1,
+            },
+          ]),
+        });
+      }
+      return Promise.resolve({ data: paginated([]) });
+    });
+
+    const { container, findByRole } = renderWithProviders(<Atribuicoes />, { route: '/atribuicoes' });
+    await user.click(await findByRole('button', { name: 'Atribuir RT-001' }));
+    await findByRole('dialog');
+    await expect(axe(container)).resolves.toHaveNoViolations();
+  });
+
   test('Veículos (lista vazia) não tem violações de acessibilidade', async () => {
     const { container, findByText } = renderWithProviders(<Veiculos />);
     await findByText('Nenhum veículo encontrado para os filtros aplicados.');
@@ -104,6 +219,78 @@ describe('acessibilidade (regressão estrutural)', () => {
   test('Otimização de Rotas (estado inicial, sem pedidos gerados) não tem violações de acessibilidade', async () => {
     const { container, findByText } = renderWithProviders(<OtimizacaoRotas />);
     await findByText('Gere pedidos simulados para começar.');
+    await expect(axe(container)).resolves.toHaveNoViolations();
+  });
+
+  test('Pedidos (lista vazia) não tem violações de acessibilidade', async () => {
+    const { container, findByText } = renderWithProviders(<Pedidos />);
+    await findByText('Nenhum pedido disponível — gere alguns pra começar.');
+    await expect(axe(container)).resolves.toHaveNoViolations();
+  });
+
+  test('Planos (lista vazia) não tem violações de acessibilidade', async () => {
+    const { container, findByText } = renderWithProviders(<Planos />);
+    await findByText('Nenhum plano criado ainda. Selecione pedidos na tela de Pedidos pra criar o primeiro.');
+    await expect(axe(container)).resolves.toHaveNoViolations();
+  });
+
+  test('Detalhe do plano não tem violações de acessibilidade', async () => {
+    mockedApi.get.mockResolvedValue({
+      data: {
+        id: 'plano1',
+        nome: 'Plano Teste',
+        status: 'ABERTO',
+        criadoEm: new Date().toISOString(),
+        pedidos: [],
+      },
+    });
+    const { container, findByText } = renderWithProviders(
+      <Routes>
+        <Route path="/planos/:id" element={<PlanoDetalhe />} />
+      </Routes>,
+      { route: '/planos/plano1' }
+    );
+    await findByText('Plano Teste');
+    await expect(axe(container)).resolves.toHaveNoViolations();
+  });
+
+  test('Modal de aprovar rota não tem violações de acessibilidade', async () => {
+    const user = userEvent.setup();
+    const planoOtimizado = {
+      id: 'plano1',
+      nome: 'Plano Teste',
+      status: 'OTIMIZADO',
+      criadoEm: new Date().toISOString(),
+      pedidos: [
+        {
+          id: 'p1',
+          codigo: 'PED-001',
+          cliente: 'Cliente',
+          endereco: 'Rua A, 1',
+          cidade: 'Centro',
+          lat: -26.3,
+          lng: -48.8,
+          unidades: 1,
+          volumeM3: 0.1,
+          criadoEm: new Date().toISOString(),
+          planoId: 'plano1',
+          rotaIndex: 1,
+          rota: null,
+        },
+      ],
+    };
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/planos/plano1') return Promise.resolve({ data: planoOtimizado });
+      return Promise.resolve({ data: paginated([]) });
+    });
+    const { container, findByRole } = renderWithProviders(
+      <Routes>
+        <Route path="/planos/:id" element={<PlanoDetalhe />} />
+      </Routes>,
+      { route: '/planos/plano1' }
+    );
+    await user.click(await findByRole('button', { name: 'Aprovar Rota' }));
+    await findByRole('dialog');
     await expect(axe(container)).resolves.toHaveNoViolations();
   });
 
