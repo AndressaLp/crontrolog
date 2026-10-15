@@ -24,7 +24,8 @@ describe('Layout', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Controlog v1.0')).toBeInTheDocument(); // Sidebar
+    // Rodapé da Sidebar — a versão vem do package.json, então não é fixada aqui.
+    expect(screen.getByText(/^Controlog v\d+\.\d+\.\d+$/)).toBeInTheDocument();
     expect(screen.getByText('Ricardo Menezes')).toBeInTheDocument(); // Header
     expect(screen.getByText('Conteúdo da página')).toBeInTheDocument(); // Outlet
   });
