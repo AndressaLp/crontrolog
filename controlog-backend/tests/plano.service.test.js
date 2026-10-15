@@ -17,7 +17,7 @@ function buildPrismaMock() {
       count: jest.fn(),
       delete: jest.fn(),
     },
-    pedido: { findMany: jest.fn() },
+    pedido: { findMany: jest.fn(), findFirst: jest.fn(), updateMany: jest.fn() },
     motorista: { findUnique: jest.fn() },
     veiculo: { findUnique: jest.fn() },
     $transaction: jest.fn(async (fn) => fn(tx)),
@@ -257,6 +257,134 @@ describe('plano.service — aprovarRota', () => {
     const service = createPlanoService(prisma);
     await expect(service.aprovarRota('plano1', '1', payload)).rejects.toBeInstanceOf(ValidationError);
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('plano.service — moverPedidos', () => {
+  function planoOtimizado(prisma) {
+    prisma.plano.findUnique.mockResolvedValue({ id: 'plano1', status: 'OTIMIZADO' });
+    // getById no fim do método devolve o plano atualizado.
+    prisma.plano.findUnique.mockResolvedValueOnce({ id: 'plano1', status: 'OTIMIZADO' });
+  }
+
+  test('atribui os pedidos selecionados a outra rota do plano', async () => {
+    const prisma = buildPrismaMock();
+    planoOtimizado(prisma);
+    prisma.pedido.findMany.mockResolvedValue([
+      { id: 'p1', codigo: 'PED-1', planoId: 'plano1', rotaId: null },
+      { id: 'p2', codigo: 'PED-2', planoId: 'plano1', rotaId: null },
+    ]);
+    prisma.pedido.findFirst.mockResolvedValue(null);
+
+    const service = createPlanoService(prisma);
+    await service.moverPedidos('plano1', { pedidoIds: ['p1', 'p2'], rotaIndex: 2 });
+
+    expect(prisma.pedido.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['p1', 'p2'] } },
+      data: { rotaIndex: 2 },
+    });
+  });
+
+  test('rotaIndex null desatribui os pedidos sem checar rota de destino', async () => {
+    const prisma = buildPrismaMock();
+    planoOtimizado(prisma);
+    prisma.pedido.findMany.mockResolvedValue([
+      { id: 'p1', codigo: 'PED-1', planoId: 'plano1', rotaId: null },
+    ]);
+
+    const service = createPlanoService(prisma);
+    await service.moverPedidos('plano1', { pedidoIds: ['p1'], rotaIndex: null });
+
+    expect(prisma.pedido.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['p1'] } },
+      data: { rotaIndex: null },
+    });
+    expect(prisma.pedido.findFirst).not.toHaveBeenCalled();
+  });
+
+  // Pedido de rota aprovada já virou Entrega de uma Rota real — movê-lo aqui
+  // deixaria o plano e a operação contando coisas diferentes.
+  test('rejeita mover pedido que está numa rota já aprovada', async () => {
+    const prisma = buildPrismaMock();
+    planoOtimizado(prisma);
+    prisma.pedido.findMany.mockResolvedValue([
+      { id: 'p1', codigo: 'PED-1', planoId: 'plano1', rotaId: 'rota-real-1' },
+    ]);
+
+    const service = createPlanoService(prisma);
+
+    await expect(
+      service.moverPedidos('plano1', { pedidoIds: ['p1'], rotaIndex: 2 })
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(prisma.pedido.updateMany).not.toHaveBeenCalled();
+  });
+
+  test('rejeita mandar pedidos pra uma rota de destino já aprovada', async () => {
+    const prisma = buildPrismaMock();
+    planoOtimizado(prisma);
+    prisma.pedido.findMany.mockResolvedValue([
+      { id: 'p1', codigo: 'PED-1', planoId: 'plano1', rotaId: null },
+    ]);
+    prisma.pedido.findFirst.mockResolvedValue({ id: 'p9', rotaId: 'rota-real-1' });
+
+    const service = createPlanoService(prisma);
+
+    await expect(
+      service.moverPedidos('plano1', { pedidoIds: ['p1'], rotaIndex: 1 })
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(prisma.pedido.updateMany).not.toHaveBeenCalled();
+  });
+
+  test('rejeita pedido que pertence a outro plano', async () => {
+    const prisma = buildPrismaMock();
+    planoOtimizado(prisma);
+    prisma.pedido.findMany.mockResolvedValue([
+      { id: 'p1', codigo: 'PED-1', planoId: 'outro-plano', rotaId: null },
+    ]);
+
+    const service = createPlanoService(prisma);
+
+    await expect(
+      service.moverPedidos('plano1', { pedidoIds: ['p1'], rotaIndex: 1 })
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(prisma.pedido.updateMany).not.toHaveBeenCalled();
+  });
+
+  test('rejeita quando algum pedido informado não existe', async () => {
+    const prisma = buildPrismaMock();
+    planoOtimizado(prisma);
+    prisma.pedido.findMany.mockResolvedValue([
+      { id: 'p1', codigo: 'PED-1', planoId: 'plano1', rotaId: null },
+    ]);
+
+    const service = createPlanoService(prisma);
+
+    await expect(
+      service.moverPedidos('plano1', { pedidoIds: ['p1', 'p2'], rotaIndex: 1 })
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  test('rejeita reorganizar um plano ainda ABERTO', async () => {
+    const prisma = buildPrismaMock();
+    prisma.plano.findUnique.mockResolvedValue({ id: 'plano1', status: 'ABERTO' });
+
+    const service = createPlanoService(prisma);
+
+    await expect(
+      service.moverPedidos('plano1', { pedidoIds: ['p1'], rotaIndex: 1 })
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(prisma.pedido.findMany).not.toHaveBeenCalled();
+  });
+
+  test('rejeita plano inexistente', async () => {
+    const prisma = buildPrismaMock();
+    prisma.plano.findUnique.mockResolvedValue(null);
+
+    const service = createPlanoService(prisma);
+
+    await expect(
+      service.moverPedidos('inexistente', { pedidoIds: ['p1'], rotaIndex: 1 })
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
 

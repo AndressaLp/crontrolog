@@ -113,6 +113,53 @@ export function createPlanoService(prisma) {
       return this.getById(id);
     },
 
+    // Move pedidos entre os grupos de um plano já otimizado — é o que
+    // sustenta a seleção por polígono na tela do plano (atribuir a outra rota,
+    // mandar pra uma rota nova, ou desatribuir com rotaIndex null).
+    //
+    // Grupo já aprovado é intocável nos dois sentidos: ele virou uma Rota real
+    // com Entregas, e mexer nos pedidos aqui deixaria o plano e a operação
+    // contando coisas diferentes.
+    async moverPedidos(planoId, { pedidoIds, rotaIndex }) {
+      const plano = await prisma.plano.findUnique({ where: { id: planoId } });
+      if (!plano) throw new NotFoundError('Plano não encontrado.');
+      if (plano.status !== 'OTIMIZADO') {
+        throw new ValidationError('Otimize o plano antes de reorganizar os pedidos.');
+      }
+
+      const pedidos = await prisma.pedido.findMany({ where: { id: { in: pedidoIds } } });
+      if (pedidos.length !== pedidoIds.length) {
+        throw new ValidationError('Um ou mais pedidos informados não existem.');
+      }
+      const deOutroPlano = pedidos.find((p) => p.planoId !== planoId);
+      if (deOutroPlano) {
+        throw new ValidationError(`O pedido ${deOutroPlano.codigo} não pertence a este plano.`);
+      }
+
+      const jaAprovado = pedidos.find((p) => p.rotaId !== null);
+      if (jaAprovado) {
+        throw new ConflictError(
+          `O pedido ${jaAprovado.codigo} está numa rota já aprovada e não pode ser movido.`
+        );
+      }
+
+      if (rotaIndex !== null) {
+        const destinoAprovado = await prisma.pedido.findFirst({
+          where: { planoId, rotaIndex, rotaId: { not: null } },
+        });
+        if (destinoAprovado) {
+          throw new ConflictError(`A Rota ${rotaIndex} já foi aprovada e não aceita novos pedidos.`);
+        }
+      }
+
+      await prisma.pedido.updateMany({
+        where: { id: { in: pedidoIds } },
+        data: { rotaIndex },
+      });
+
+      return this.getById(planoId);
+    },
+
     // Promove um grupo (rotaIndex) já otimizado a uma Rota real: cria a
     // Rota com um código sequencial RT-XXX, marca os pedidos do grupo como
     // aprovados (Pedido.rotaId) e cria uma Entrega por pedido — a partir

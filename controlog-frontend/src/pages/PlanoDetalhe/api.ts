@@ -14,6 +14,12 @@ interface RotaAprovada {
   codigo: string;
 }
 
+interface MoverPedidosInput {
+  pedidoIds: string[];
+  /** null desatribui: o pedido continua no plano, mas fora de qualquer rota. */
+  rotaIndex: number | null;
+}
+
 export function usePlano(id: string) {
   return useQuery({
     queryKey: ['planos', id],
@@ -35,6 +41,15 @@ export function useRenomearPlano(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (nome: string) => (await api.put<PlanoDetalhe>(`/planos/${id}`, { nome })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['planos'] }),
+  });
+}
+
+export function useMoverPedidos(planoId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (dados: MoverPedidosInput) =>
+      (await api.patch<PlanoDetalhe>(`/planos/${planoId}/pedidos/rota`, dados)).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['planos'] }),
   });
 }

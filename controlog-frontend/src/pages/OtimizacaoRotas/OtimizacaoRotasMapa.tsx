@@ -1,84 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  CircleMarker,
-  MapContainer,
-  Marker,
-  Polygon,
-  Polyline,
-  Popup,
-  TileLayer,
-  useMap,
-  useMapEvents,
-} from 'react-leaflet';
-import L from 'leaflet';
+import { useMemo, useState } from 'react';
+import { MapContainer, Marker, Polyline, Popup, TileLayer } from 'react-leaflet';
 import { aplicarFixIconesLeaflet } from '@/lib/leafletIconFix';
-import { depositoIcon, iconeColorido } from '@/lib/mapaIcones';
+import { CINZA_SELECAO, depositoIcon, iconeColorido, pedidoIcon } from '@/lib/mapaIcones';
+import { AjustarBounds, CapturaCliqueDesenho, PoligonoDesenho } from '@/components/shared/mapaDesenho';
 import { pedidosNaoAtribuidos, type RotaSimulada } from './rotasSimuladas';
 import type { Coordenada, Pedido } from './types';
 
 aplicarFixIconesLeaflet();
-
-const CINZA_SELECAO = '#6b7280';
-const COR_DESENHO = '#f59e0b';
-
-// Marcador dos pedidos não atribuídos e não selecionados — ícone explícito,
-// em vez de depender do ícone padrão implícito do Leaflet.
-const pedidoIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-grey.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-});
-
-function assinaturaBounds(bounds: [number, number][]): string {
-  return bounds.map(([lat, lng]) => `${lat.toFixed(5)},${lng.toFixed(5)}`).join(';');
-}
-
-// MapContainer.bounds só é lido no mount — não reage a mudanças depois. Pra
-// re-enquadrar quando o foco de rota muda, precisa de um efeito imperativo
-// via a instância do mapa (useMap), amarrado a uma assinatura estável (não
-// ao array em si, que muda de referência a cada render).
-function AjustarBounds({ bounds }: { bounds: [number, number][] }) {
-  const map = useMap();
-  const assinatura = assinaturaBounds(bounds);
-
-  useEffect(() => {
-    if (bounds.length === 0) return;
-    map.fitBounds(bounds, { padding: [30, 30] });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assinatura]);
-
-  return null;
-}
-
-// Captura cliques no mapa pra desenhar o polígono, e desliga o zoom por
-// duplo-clique enquanto isso (senão dois cliques rápidos de vértice
-// próximos no tempo dão zoom sem querer). doubleClickZoom também só vale
-// como prop estática no mount, precisa ser imperativo.
-function CapturaCliqueDesenho({
-  ativo,
-  onClique,
-}: {
-  ativo: boolean;
-  onClique: (ponto: Coordenada) => void;
-}) {
-  const map = useMapEvents({
-    click(e) {
-      if (ativo) onClique({ lat: e.latlng.lat, lng: e.latlng.lng });
-    },
-  });
-
-  useEffect(() => {
-    if (ativo) {
-      map.doubleClickZoom.disable();
-    } else {
-      map.doubleClickZoom.enable();
-    }
-  }, [ativo, map]);
-
-  return null;
-}
 
 interface Props {
   origem: Coordenada;
@@ -201,22 +129,7 @@ export default function OtimizacaoRotasMapa({
           );
         })}
 
-      {modoDesenho && pontosPoligono.length > 0 && (
-        <>
-          <Polygon
-            positions={pontosPoligono.map((p): [number, number] => [p.lat, p.lng])}
-            pathOptions={{ color: COR_DESENHO, dashArray: '4, 4', fillOpacity: 0.1 }}
-          />
-          {pontosPoligono.map((p, indice) => (
-            <CircleMarker
-              key={indice}
-              center={[p.lat, p.lng]}
-              radius={5}
-              pathOptions={{ color: COR_DESENHO, fillColor: COR_DESENHO, fillOpacity: 1 }}
-            />
-          ))}
-        </>
-      )}
+      {modoDesenho && <PoligonoDesenho pontos={pontosPoligono} />}
     </MapContainer>
   );
 }

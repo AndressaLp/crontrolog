@@ -1,19 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CheckCircle2, Pencil, RefreshCw, Route as RouteIcon } from 'lucide-react';
+import { CheckCircle2, LassoSelect, Pencil, RefreshCw, Route as RouteIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getErrorMessage } from '@/lib/api';
 import { useOtimizarRota } from '@/pages/OtimizacaoRotas/api';
 import { DEPOSITO } from '@/pages/OtimizacaoRotas/gerarPedidos';
+import { pedidosDentroDoPoligono } from '@/pages/OtimizacaoRotas/pontoNoPoligono';
 import { PALETA_CORES, TIPOS_VEICULO } from '@/pages/OtimizacaoRotas/rotasSimuladas';
-import type { ResultadoOtimizacao } from '@/pages/OtimizacaoRotas/types';
+import type { Coordenada, ResultadoOtimizacao } from '@/pages/OtimizacaoRotas/types';
 import type { StatusPlano } from '@/pages/Planos/types';
-import { useAprovarRota, useOtimizarPlano, usePlano, useRenomearPlano } from './api';
+import { useAprovarRota, useMoverPedidos, useOtimizarPlano, usePlano, useRenomearPlano } from './api';
 import AprovarRotaModal from './AprovarRotaModal';
 import PlanoMapa, { type GrupoNoMapa } from './PlanoMapa';
 import RenomearPlanoModal from './RenomearPlanoModal';
@@ -71,6 +73,11 @@ function TabelaPedidos({ pedidos }: { pedidos: PedidoDoPlano[] }) {
   );
 }
 
+interface AcaoRapida {
+  rotaIndex: number;
+  tipo: 'atribuir' | 'desatribuir';
+}
+
 export default function PlanoDetalhe() {
   const { id } = useParams<{ id: string }>();
   const [tamanhoRota, setTamanhoRota] = useState(TAMANHO_ROTA_PADRAO);
@@ -81,24 +88,52 @@ export default function PlanoDetalhe() {
   const renomearMutation = useRenomearPlano(id ?? '');
   const otimizarRotaMutation = useOtimizarRota();
   const aprovarRotaMutation = useAprovarRota(id ?? '');
+  const moverMutation = useMoverPedidos(id ?? '');
 
   const [resultadosPorGrupo, setResultadosPorGrupo] = useState<Record<number, ResultadoOtimizacao | null>>({});
   const [statusPorGrupo, setStatusPorGrupo] = useState<Record<number, 'calculando' | 'calculada' | 'erro'>>({});
   const [aprovando, setAprovando] = useState<number | null>(null);
 
+  const [modoDesenho, setModoDesenho] = useState(false);
+  const [pontosPoligono, setPontosPoligono] = useState<Coordenada[]>([]);
+  const [acaoRapida, setAcaoRapida] = useState<AcaoRapida | null>(null);
+  const [grupoEmFoco, setGrupoEmFoco] = useState<number | null>(null);
+
+  const otimizado = plano?.status === 'OTIMIZADO';
+
+  // Pedido com rotaIndex null num plano otimizado é o que foi desatribuído à
+  // mão — fica no plano, fora de qualquer rota, esperando ser realocado.
+  const naoAtribuidos = useMemo(
+    () => (otimizado ? (plano?.pedidos ?? []).filter((p) => p.rotaIndex === null) : []),
+    [plano, otimizado]
+  );
+
   const grupos = useMemo(() => {
-    if (!plano || plano.status !== 'OTIMIZADO') return null;
+    if (!plano || !otimizado) return null;
     const mapa = new Map<number, PedidoDoPlano[]>();
     for (const pedido of plano.pedidos) {
-      const indice = pedido.rotaIndex ?? 0;
-      mapa.set(indice, [...(mapa.get(indice) ?? []), pedido]);
+      if (pedido.rotaIndex === null) continue;
+      mapa.set(pedido.rotaIndex, [...(mapa.get(pedido.rotaIndex) ?? []), pedido]);
     }
     return Array.from(mapa.entries()).sort(([a], [b]) => a - b);
-  }, [plano]);
+  }, [plano, otimizado]);
+
+  const assinaturaPorGrupo = useMemo(() => {
+    const assinaturas: Record<number, string> = {};
+    for (const [indice, pedidos] of grupos ?? []) {
+      assinaturas[indice] = pedidos.map((p) => p.id).join(',');
+    }
+    return assinaturas;
+  }, [grupos]);
 
   const assinaturaGrupos = grupos
-    ? grupos.map(([indice, pedidos]) => `${indice}:${pedidos.map((p) => p.id).join(',')}`).join('|')
+    ? grupos.map(([indice]) => `${indice}:${assinaturaPorGrupo[indice]}`).join('|')
     : '';
+
+  // Guarda a assinatura já calculada de cada grupo pra não refazer o traçado
+  // de rotas que não mudaram — sem isso, mover um punhado de pedidos dispararia
+  // uma chamada à ORS por rota do plano inteiro.
+  const assinaturaCalculada = useRef<Record<number, string>>({});
 
   // Sequencial (não Promise.all) — mesmo motivo da Otimização de Rotas: evita
   // rajada simultânea de chamadas à ORS, que tem limite de requisições por
@@ -109,10 +144,13 @@ export default function PlanoDetalhe() {
 
     async function calcularTracadoDasRotas() {
       for (const [indice, pedidos] of grupos!) {
+        if (assinaturaCalculada.current[indice] === assinaturaPorGrupo[indice]) continue;
+
         setStatusPorGrupo((atual) => ({ ...atual, [indice]: 'calculando' }));
         try {
           const resultado = await otimizarRotaMutation.mutateAsync({ origem: DEPOSITO, pedidos });
           if (cancelado) return;
+          assinaturaCalculada.current[indice] = assinaturaPorGrupo[indice];
           setResultadosPorGrupo((atual) => ({ ...atual, [indice]: resultado }));
           setStatusPorGrupo((atual) => ({ ...atual, [indice]: 'calculada' }));
         } catch (error) {
@@ -142,6 +180,134 @@ export default function PlanoDetalhe() {
   );
 
   const calculandoRotasNoMapa = (grupos ?? []).some(([indice]) => statusPorGrupo[indice] === 'calculando');
+
+  // Só pedidos de rotas ainda não aprovadas entram na seleção: uma rota
+  // aprovada já virou Rota real com Entregas, e o backend recusa movê-la.
+  const pedidosMoviveis = useMemo(
+    () => (otimizado ? (plano?.pedidos ?? []).filter((p) => p.rota === null) : []),
+    [plano, otimizado]
+  );
+
+  const pedidosSelecionadosIds = useMemo(
+    () => new Set(pedidosDentroDoPoligono(pedidosMoviveis, pontosPoligono).map((p) => p.id)),
+    [pedidosMoviveis, pontosPoligono]
+  );
+
+  const selecaoTemPedidoEmRota = useMemo(
+    () =>
+      pedidosMoviveis.some((p) => p.rotaIndex !== null && pedidosSelecionadosIds.has(p.id)),
+    [pedidosMoviveis, pedidosSelecionadosIds]
+  );
+
+  const gruposNaoAprovados = (grupos ?? []).filter(([, pedidos]) => pedidos[0]?.rota == null);
+  const proximoIndice = Math.max(0, ...(grupos ?? []).map(([indice]) => indice)) + 1;
+
+  function limparDesenhoESelecao() {
+    setModoDesenho(false);
+    setPontosPoligono([]);
+    setAcaoRapida(null);
+  }
+
+  function moverPedidos(pedidoIds: string[], rotaIndex: number | null, mensagem: string) {
+    if (pedidoIds.length === 0) return;
+    moverMutation.mutate(
+      { pedidoIds, rotaIndex },
+      {
+        onSuccess: () => {
+          toast.success(mensagem);
+          limparDesenhoESelecao();
+        },
+        onError: (error) =>
+          toast.error(getErrorMessage(error, 'Não foi possível mover os pedidos.')),
+      }
+    );
+  }
+
+  function handleIniciarDesenho() {
+    setModoDesenho(true);
+    setPontosPoligono([]);
+    setAcaoRapida(null);
+  }
+
+  function handleCliqueMapa(ponto: Coordenada) {
+    setPontosPoligono((atual) => [...atual, ponto]);
+  }
+
+  function handleFinalizarPoligono() {
+    const selecionados = Array.from(pedidosSelecionadosIds);
+
+    if (selecionados.length === 0) {
+      toast.error('Nenhum pedido disponível dentro do polígono desenhado.');
+      limparDesenhoESelecao();
+      return;
+    }
+
+    if (acaoRapida) {
+      if (acaoRapida.tipo === 'atribuir') {
+        moverPedidos(
+          selecionados,
+          acaoRapida.rotaIndex,
+          `${selecionados.length} pedido(s) movido(s) para a Rota ${acaoRapida.rotaIndex}.`
+        );
+        return;
+      }
+
+      const daRota = pedidosMoviveis
+        .filter((p) => p.rotaIndex === acaoRapida.rotaIndex && pedidosSelecionadosIds.has(p.id))
+        .map((p) => p.id);
+      const ignorados = selecionados.length - daRota.length;
+
+      if (daRota.length === 0) {
+        toast.error(`Nenhum pedido da Rota ${acaoRapida.rotaIndex} dentro do polígono.`);
+        limparDesenhoESelecao();
+        return;
+      }
+      if (ignorados > 0) {
+        toast(`${ignorados} pedido(s) selecionado(s) não pertenciam a essa rota e foram ignorados.`);
+      }
+      moverPedidos(daRota, null, `${daRota.length} pedido(s) desatribuído(s).`);
+      return;
+    }
+
+    // Encerra o desenho, mas mantém a seleção visível pra mostrar a barra de ação.
+    setModoDesenho(false);
+  }
+
+  function handleCriarRotaDaSelecao() {
+    moverPedidos(
+      Array.from(pedidosSelecionadosIds),
+      proximoIndice,
+      `Rota ${proximoIndice} criada com ${pedidosSelecionadosIds.size} pedido(s).`
+    );
+  }
+
+  function handleAtribuirASelecao(valor: string) {
+    const rotaIndex = Number(valor);
+    moverPedidos(
+      Array.from(pedidosSelecionadosIds),
+      rotaIndex,
+      `${pedidosSelecionadosIds.size} pedido(s) movido(s) para a Rota ${rotaIndex}.`
+    );
+  }
+
+  function handleDesatribuirSelecao() {
+    const emRota = pedidosMoviveis
+      .filter((p) => p.rotaIndex !== null && pedidosSelecionadosIds.has(p.id))
+      .map((p) => p.id);
+    moverPedidos(emRota, null, `${emRota.length} pedido(s) desatribuído(s).`);
+  }
+
+  function handleAtribuirPedidosLinha(rotaIndex: number) {
+    setAcaoRapida({ rotaIndex, tipo: 'atribuir' });
+    setModoDesenho(true);
+    setPontosPoligono([]);
+  }
+
+  function handleDesatribuirPedidosLinha(rotaIndex: number) {
+    setAcaoRapida({ rotaIndex, tipo: 'desatribuir' });
+    setModoDesenho(true);
+    setPontosPoligono([]);
+  }
 
   function handleOtimizar() {
     otimizarMutation.mutate(tamanhoRota, {
@@ -246,7 +412,77 @@ export default function PlanoDetalhe() {
           <RouteIcon className="w-4 h-4 mr-2" />
           {otimizarMutation.isPending ? 'Otimizando...' : 'Otimizar Plano'}
         </Button>
+
+        {otimizado && !modoDesenho && (
+          <Button type="button" variant="outline" onClick={handleIniciarDesenho}>
+            <LassoSelect className="w-4 h-4 mr-2" />
+            Desenhar Polígono
+          </Button>
+        )}
+
+        {modoDesenho && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {acaoRapida
+                ? `Desenhando pra ${acaoRapida.tipo === 'atribuir' ? 'atribuir pedidos à' : 'desatribuir pedidos da'} Rota ${acaoRapida.rotaIndex}`
+                : 'Clique no mapa pra adicionar pontos do polígono.'}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleFinalizarPoligono}
+              disabled={pontosPoligono.length < 3}
+            >
+              Finalizar Polígono ({pontosPoligono.length})
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={limparDesenhoESelecao}>
+              Cancelar
+            </Button>
+          </div>
+        )}
       </div>
+
+      {!modoDesenho && pedidosSelecionadosIds.size > 0 && (
+        <div className="rounded-lg border bg-amber-50 border-amber-100 p-4 flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium text-amber-800">
+            {pedidosSelecionadosIds.size} pedido(s) selecionado(s)
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleCriarRotaDaSelecao}
+            disabled={moverMutation.isPending}
+          >
+            Criar rota
+          </Button>
+          {gruposNaoAprovados.length > 0 && (
+            <Select onValueChange={handleAtribuirASelecao} disabled={moverMutation.isPending}>
+              <SelectTrigger className="w-56" aria-label="Atribuir à rota existente">
+                <SelectValue placeholder="Atribuir à rota existente" />
+              </SelectTrigger>
+              <SelectContent>
+                {gruposNaoAprovados.map(([indice, pedidosDoGrupo]) => (
+                  <SelectItem key={indice} value={String(indice)}>
+                    Rota {indice} ({pedidosDoGrupo.length} pedido(s))
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleDesatribuirSelecao}
+            disabled={!selecaoTemPedidoEmRota || moverMutation.isPending}
+          >
+            Desatribuir
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={limparDesenhoESelecao}>
+            Cancelar seleção
+          </Button>
+        </div>
+      )}
 
       {gruposParaMapa.length > 0 && (
         <div className="space-y-2">
@@ -254,7 +490,16 @@ export default function PlanoDetalhe() {
           {calculandoRotasNoMapa && (
             <p className="text-xs text-muted-foreground">Calculando traçado das rotas...</p>
           )}
-          <PlanoMapa origem={DEPOSITO} grupos={gruposParaMapa} />
+          <PlanoMapa
+            origem={DEPOSITO}
+            grupos={gruposParaMapa}
+            naoAtribuidos={naoAtribuidos}
+            pedidosSelecionadosIds={pedidosSelecionadosIds}
+            grupoEmFocoIndice={grupoEmFoco}
+            modoDesenho={modoDesenho}
+            pontosPoligono={pontosPoligono}
+            onCliqueMapa={handleCliqueMapa}
+          />
         </div>
       )}
 
@@ -274,11 +519,40 @@ export default function PlanoDetalhe() {
                     style={{ backgroundColor: corDoGrupo(indice - 1) }}
                     aria-hidden="true"
                   />
-                  <h2 className="font-semibold text-sm">Rota {indice}</h2>
+                  <button
+                    type="button"
+                    onClick={() => setGrupoEmFoco((atual) => (atual === indice ? null : indice))}
+                    aria-label={grupoEmFoco === indice ? `Desfocar Rota ${indice}` : `Focar Rota ${indice}`}
+                    className={`font-semibold text-sm transition-colors ${
+                      grupoEmFoco === indice ? 'text-blue-600' : 'hover:text-blue-600'
+                    }`}
+                  >
+                    Rota {indice}
+                  </button>
                   <span className="text-xs text-muted-foreground">
                     {veiculoDoGrupo(indice - 1)} · {pedidosDoGrupo.length} pedido(s)
                   </span>
                   <div className="ml-auto flex items-center gap-2">
+                    {!codigoAprovado && (
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleAtribuirPedidosLinha(indice)}
+                        >
+                          Atribuir pedidos
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDesatribuirPedidosLinha(indice)}
+                        >
+                          Desatribuir pedidos
+                        </Button>
+                      </>
+                    )}
                     <Button
                       type="button"
                       size="icon"
@@ -308,6 +582,20 @@ export default function PlanoDetalhe() {
               </div>
             );
           })}
+
+          {naoAtribuidos.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="h-2.5 w-2.5 rounded-full shrink-0 bg-gray-400" aria-hidden="true" />
+                <h2 className="font-semibold text-sm">Sem rota</h2>
+                <span className="text-xs text-muted-foreground">
+                  {naoAtribuidos.length} pedido(s) fora de qualquer rota — selecione no mapa pra
+                  realocar
+                </span>
+              </div>
+              <TabelaPedidos pedidos={naoAtribuidos} />
+            </div>
+          )}
         </div>
       ) : (
         <TabelaPedidos pedidos={plano.pedidos} />

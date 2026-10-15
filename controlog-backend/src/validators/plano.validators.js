@@ -15,6 +15,15 @@ export const otimizarPlanoSchema = z.object({
   tamanhoRota: z.coerce.number().int().min(1, 'Informe ao menos 1 pedido por rota.').max(50),
 });
 
+// rotaIndex null = desatribuir (o pedido fica no plano, mas fora de qualquer
+// rota); um número = mandar pro grupo daquele índice, existente ou novo.
+export const moverPedidosSchema = z.object({
+  pedidoIds: z
+    .array(z.string().uuid('pedidoIds deve conter apenas ids válidos.'))
+    .min(1, 'Selecione ao menos um pedido.'),
+  rotaIndex: z.number().int().min(1, 'rotaIndex deve ser 1 ou maior.').nullable(),
+});
+
 export const aprovarRotaSchema = z.object({
   motoristaId: z.string().uuid('Selecione um motorista.'),
   veiculoId: z.string().uuid('Selecione um veículo.'),

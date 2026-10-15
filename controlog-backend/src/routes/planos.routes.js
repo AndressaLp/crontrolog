@@ -7,6 +7,7 @@ import {
   aprovarRotaSchema,
   createPlanoSchema,
   listPlanosQuerySchema,
+  moverPedidosSchema,
   otimizarPlanoSchema,
   renomearPlanoSchema,
 } from '../validators/plano.validators.js';
@@ -21,5 +22,6 @@ planosRouter.get('/:id', controller.getById);
 planosRouter.post('/', validate(createPlanoSchema), controller.create);
 planosRouter.put('/:id', validate(renomearPlanoSchema), controller.renomear);
 planosRouter.post('/:id/otimizar', validate(otimizarPlanoSchema), controller.otimizar);
+planosRouter.patch('/:id/pedidos/rota', validate(moverPedidosSchema), controller.moverPedidos);
 planosRouter.post('/:id/rotas/:rotaIndex/aprovar', validate(aprovarRotaSchema), controller.aprovarRota);
 planosRouter.delete('/:id', controller.remove);

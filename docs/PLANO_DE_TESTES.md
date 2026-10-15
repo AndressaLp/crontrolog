@@ -94,9 +94,9 @@ de uma mesma rede por causa de uma única tentativa.
 
 **Cobertura automatizada atual:**
 
-- **Backend:** 174 testes em 20 suítes — **94,3% statements**, **91,1% funções**, **79,9% branches**.
+- **Backend:** 182 testes em 20 suítes — **94,2% statements**, **90,8% funções**, **80,8% branches**.
   Comando: `cd controlog-backend && npm run test:coverage`.
-- **Frontend:** 191 testes em 30 suítes — **82,2% statements**, **76,5% funções**, **80,5% branches**.
+- **Frontend:** 199 testes em 30 suítes — **83,2% statements**, **77,8% funções**, **80,4% branches**.
   Comando: `cd controlog-frontend && npm run test:coverage`.
 
 Ambos acima da meta de 70% definida na RNF07.
@@ -114,8 +114,9 @@ tem a lógica de chamada/conversão coberta automaticamente com o `fetch` mockad
 integração de ponta a ponta contra a API real só é verificada manualmente, com uma
 `ORS_API_KEY` de verdade configurada. Pelo mesmo motivo do Leaflet, a interação real de
 desenhar um polígono no mapa (cliques de mouse formando os vértices) também só é
-verificada manualmente — o teste de página simula "desenhar um polígono" chamando
-diretamente o callback que o mapa mockado expõe, com coordenadas fixas.
+verificada manualmente — os testes de página (Otimização de Rotas e detalhe do Plano)
+simulam "desenhar um polígono" chamando diretamente o callback que o mapa mockado
+expõe, com coordenadas fixas.
 
 Os `Select` do shadcn/Radix, por outro lado, passaram a ser testáveis: o jsdom não
 implementa a Pointer Capture API e o Radix chama `hasPointerCapture` ao abrir o menu,
@@ -174,6 +175,7 @@ práticas de segurança/escalabilidade:
 | Pedidos/Planos | `POST /api/planos/:id/otimizar` | Ordena os pedidos por varredura geográfica (`ordenarPorVarredura`, ângulo em volta do depósito) e só então divide em grupos sequenciais de até `tamanhoRota` (`rotaIndex`) — cada rota cobre uma região compacta, em vez de seguir a ordem de criação do pedido | `tests/plano.service.test.js`, `tests/geo.test.js` |
 | Pedidos/Planos | Excluir um plano | Pedidos vinculados voltam a `planoId: null` (não são apagados) | `tests/plano.service.test.js` |
 | Pedidos/Planos | Mapa do plano otimizado: um marcador numerado por pedido e uma polyline por rota (traçado real via ORS, ou linha reta tracejada em fallback) | Reusa o mesmo `POST /api/otimizacao-rotas/otimizar` — uma chamada sequencial por grupo (`rotaIndex`), nunca em paralelo, pelo mesmo limite de requisições/minuto da ORS | Verificado manualmente (`PlanoMapa.tsx`) |
+| Pedidos/Planos | `PATCH /api/planos/:id/pedidos/rota` | Move os pedidos informados para outro grupo (`rotaIndex`) ou os desatribui (`rotaIndex: null`) — é o que sustenta a seleção por polígono na tela do plano. Rejeita plano ainda `ABERTO` (422), pedido de outro plano (422) e, nos dois sentidos, qualquer envolvimento de rota já aprovada (409) | `tests/plano.service.test.js` |
 | Pedidos/Planos | `POST /api/planos/:id/rotas/:rotaIndex/aprovar` | Cria uma `Rota` real com código sequencial `RT-XXX` (`proximoCodigoSequencial`), marca os pedidos do grupo como aprovados (`Pedido.rotaId`) e cria uma `Entrega` por pedido — rejeita se o plano não estiver `OTIMIZADO`, se o grupo não existir, se já tiver sido aprovado (409, idempotência) ou se motorista/veículo não existirem | `tests/plano.service.test.js`, `tests/codigoSequencial.test.js` |
 | Acesso do motorista | `POST /api/motoristas/:id/acesso` | Cria um `Usuario` com perfil `MOTORISTA` (senha com hash bcrypt, nunca em texto puro) e grava `motoristas.usuario_id` numa transação — rejeita motorista inexistente (404), motorista que já tem acesso (409) e e-mail já usado por outro usuário (409) | `tests/motorista.service.test.js` |
 | Acesso do motorista | Criar acesso com token de `OPERADOR` | `403 Forbidden` — a ação é restrita ao `GESTOR` | `tests/app.test.js` |
@@ -238,6 +240,9 @@ práticas de segurança/escalabilidade:
 | Plano detalhe | Grupo com `pedido.rota` preenchido mostra o badge "Aprovada — RT-XXX" em vez do botão; clicar em "Aprovar Rota" abre o modal com o grupo certo | `src/pages/PlanoDetalhe/index.test.tsx`, `src/test/a11y.test.tsx` |
 | Plano detalhe | Depois de otimizar, calcula o traçado de cada rota com uma chamada sequencial por grupo (`/otimizacao-rotas/otimizar`) e alimenta o mapa (mockado); plano Aberto não mostra mapa | `src/pages/PlanoDetalhe/index.test.tsx` |
 | Plano detalhe | Botão "Reotimizar" recalcula o traçado de uma única rota (nova chamada só com os pedidos daquele grupo), sem mexer nas outras | `src/pages/PlanoDetalhe/index.test.tsx` |
+| Plano detalhe | Seleção por polígono: desenhar seleciona só os pedidos dentro dele; a seleção vira rota nova (próximo índice livre), vai pra uma rota existente ou é desatribuída (`rotaIndex: null`); polígono sem pedidos avisa e encerra a seleção | `src/pages/PlanoDetalhe/index.test.tsx` |
+| Plano detalhe | Ação por rota "Desatribuir pedidos" só tira os pedidos daquela rota e avisa quantos selecionados foram ignorados; rota já aprovada não mostra as ações de atribuir/desatribuir | `src/pages/PlanoDetalhe/index.test.tsx` |
+| Plano detalhe | Pedidos desatribuídos aparecem na seção "Sem rota" e são repassados ao mapa; clicar no nome da rota foca e desfoca ela | `src/pages/PlanoDetalhe/index.test.tsx` |
 
 ## 6. Roteiro de teste exploratório de front-end (executado)
 
@@ -296,6 +301,27 @@ duas funcionalidades):
    responsável. ✅
 5. Entrar de novo como o motorista anterior → a rota não aparece mais para ele, e o
    resumo zera; as entregas foram junto com a rota. ✅
+
+Sem erros de console em nenhuma etapa.
+
+**Seleção por polígono no detalhe do plano** (rodado num plano de 12 pedidos divididos
+em 3 rotas, com os cliques de vértice feitos de verdade sobre o mapa, não pelo mock):
+
+1. Plano otimizado mostra "Desenhar Polígono" e, por rota não aprovada, as ações
+   "Atribuir pedidos" e "Desatribuir pedidos". ✅
+2. Clicar no mapa acumula vértices — o botão mostra "Finalizar Polígono (n)" e só
+   habilita a partir de 3. ✅
+3. Finalizar com pedidos dentro abre a barra "2 pedido(s) selecionado(s)", e os
+   marcadores selecionados ganham o anel de destaque no mapa. ✅
+4. "Criar rota" move a seleção para o próximo índice livre → toast "Rota 4 criada com
+   2 pedido(s).", a rota de origem perde esses pedidos e a nova aparece na lista. ✅
+5. "Desatribuir pedidos" por rota remove só os daquela rota e avisa quantos
+   selecionados foram ignorados por pertencerem a outras. ✅
+6. Os pedidos desatribuídos aparecem na seção "Sem rota" e viram marcadores cinzas no
+   mapa. ✅
+7. Contra a API, com uma rota aprovada: mover um pedido *dela* responde `409`
+   ("está numa rota já aprovada"), mover um pedido *para* ela responde `409` ("não
+   aceita novos pedidos"), e mover entre rotas não aprovadas segue respondendo `200`. ✅
 
 Sem erros de console em nenhuma etapa.
 

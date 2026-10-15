@@ -79,7 +79,7 @@ A API sobe em `http://localhost:3333`. Health check: `GET /health`.
 
 ## Testes
 
-Os testes unitários injetam um Prisma Client mockado diretamente nos services (todos os services são fábricas `create*Service(prisma)`), então **não é necessário ter o banco rodando** para executar `npm test`. Cobertura atual: 174 testes, acima de 90% de statements/lines (meta do RFC, RNF07, é ≥70%).
+Os testes unitários injetam um Prisma Client mockado diretamente nos services (todos os services são fábricas `create*Service(prisma)`), então **não é necessário ter o banco rodando** para executar `npm test`. Cobertura atual: 182 testes, acima de 90% de statements/lines (meta do RFC, RNF07, é ≥70%).
 
 ## Autenticação
 
@@ -130,7 +130,7 @@ antigo continuaria vendo essas entregas como dele.
 | Relatórios | `GET /api/relatorios?dataInicio=...&dataFim=...` |
 | Otimização de rotas | `POST /api/otimizacao-rotas/otimizar` |
 | Pedidos | `GET /api/pedidos?disponivel=true`, `POST /api/pedidos/gerar` |
-| Planos | `GET/POST /api/planos`, `GET/PUT/DELETE /api/planos/:id`, `POST /api/planos/:id/otimizar`, `POST /api/planos/:id/rotas/:rotaIndex/aprovar` |
+| Planos | `GET/POST /api/planos`, `GET/PUT/DELETE /api/planos/:id`, `POST /api/planos/:id/otimizar`, `PATCH /api/planos/:id/pedidos/rota`, `POST /api/planos/:id/rotas/:rotaIndex/aprovar` |
 
 `POST /api/otimizacao-rotas/otimizar` recebe `{ origem: {lat,lng}, pedidos: [{id,lat,lng,endereco?}] }`
 (1 a 50 pedidos) e devolve a melhor ordem de visita (trajeto só de ida, sem voltar à

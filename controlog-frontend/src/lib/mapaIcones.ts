@@ -1,5 +1,21 @@
 import L from 'leaflet';
 
+/** Cinza do marcador de pedido selecionado, e âmbar do polígono em desenho. */
+export const CINZA_SELECAO = '#6b7280';
+export const COR_DESENHO = '#f59e0b';
+
+/**
+ * Pedido fora de qualquer rota — ícone explícito, em vez de depender do
+ * ícone padrão implícito do Leaflet.
+ */
+export const pedidoIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-grey.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+});
+
 export const depositoIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
