@@ -183,10 +183,20 @@ aceitam `?emRota=true|false` para filtrar por quem tem rota `ATIVA` vinculada no
 | RN07 — entrega exige rota e motorista vinculados | `src/validators/entrega.validators.js` + `src/services/entrega.service.js` |
 | RN08 — não excluir rota com entregas pendentes | `src/services/rota.service.js` (`remove`) |
 
-## Notas de integração com o front-end
+## Como o front-end consome esta API
 
-O front-end (`controlog-frontend`) hoje usa dados mockados em memória e não está conectado a esta API. Para integrar:
+O front-end (`controlog-frontend`) consome estes endpoints de verdade — não há dados
+mockados fora dos testes. O cliente HTTP é um único `axios` em
+`src/lib/api.ts`, com `baseURL` vindo de `VITE_API_URL`:
 
-1. Trocar os arrays mockados (`rotasMock`, `initialEntregas`, `initialMotoristas`, `initialVeiculos`) por chamadas `axios`/`react-query` a estes endpoints.
-2. Os enums do backend são em **maiúsculas** (`ATIVA`, `PENDENTE`, `GESTOR`...), enquanto o front hoje usa minúsculas (`ativa`, `pendente`...) — normalizar em um dos dois lados.
-3. Guardar o `accessToken` (ex.: em memória + refresh silencioso) e implementar a tela de login, hoje inexistente no front.
+1. Um interceptor de request anexa `Authorization: Bearer <accessToken>` em toda
+   chamada, lendo o token do store de autenticação (Zustand).
+2. Um interceptor de response trata `401` chamando `/api/auth/refresh` uma única vez
+   por falha (as chamadas concorrentes compartilham a mesma promessa de refresh, pra
+   não disparar vários refreshes em paralelo) e repete a requisição original com o
+   token novo. Se o refresh também falhar, faz logout.
+3. Os enums são iguais nas duas pontas, em maiúsculas (`ATIVA`, `PENDENTE`,
+   `GESTOR`...) — não há conversão de caixa no meio do caminho.
+
+As respostas paginadas (`{ items, pagination }`) têm um tipo compartilhado
+`PaginatedResponse<T>` no mesmo arquivo.
