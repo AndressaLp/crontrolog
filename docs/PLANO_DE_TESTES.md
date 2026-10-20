@@ -5,6 +5,12 @@ projeto: detalha o plano de testes com os principais casos previstos para valida
 funcionalidade importante, e descreve como a autenticação de usuários e os perfis de
 acesso são implementados.
 
+> **Fontes só se verificam no build.** O servidor de desenvolvimento serve
+> `node_modules` direto, então uma fonte quebrada aparece correta em `npm run dev`
+> e some em produção. Depois de mexer em import de fonte, rode `npm run build` e
+> confira que o `dist/assets` tem os `.woff2`; `npx vite preview` com
+> `document.fonts.check()` confirma o carregamento de verdade.
+
 ## 1. Autenticação e perfis de acesso
 
 **Mecanismo.** Autenticação stateless via JWT (RNF03). O login (`POST /api/auth/login`)
