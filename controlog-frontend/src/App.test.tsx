@@ -25,7 +25,9 @@ describe('App', () => {
       </QueryClientProvider>
     );
 
-    expect(await screen.findByText('Entre com sua conta para continuar')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Bem-vindo de volta', level: 1 })
+    ).toBeInTheDocument();
   });
 
   test('renderiza a área protegida quando há sessão ativa', async () => {

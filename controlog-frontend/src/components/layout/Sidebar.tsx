@@ -11,9 +11,10 @@ import {
   BarChart2,
   UserCog,
 } from 'lucide-react'
-import { Logo } from '@/components/shared/Logo'
+import { Logo, LogoSimbolo } from '@/components/shared/Logo'
 import { PERFIS_GESTAO, type Perfil } from '@/lib/perfil'
 import { useAuthStore } from '@/stores/authStore'
+import { useUiStore } from '@/stores/uiStore'
 
 const navItems: { to: string; icon: typeof Truck; label: string; perfis: Perfil[] }[] = [
   { to: '/minhas-rotas',      icon: MapPin,          label: 'Minhas Rotas',        perfis: ['MOTORISTA'] },
@@ -31,42 +32,58 @@ const navItems: { to: string; icon: typeof Truck; label: string; perfis: Perfil[
 
 export default function Sidebar() {
   const perfil = useAuthStore((s) => s.usuario?.perfil)
+  const recolhida = useUiStore((s) => s.sidebarRecolhida)
   // Sem perfil carregado, mostra o menu de gestão (comportamento de antes) —
   // o acesso em si é barrado pelo RequireAuth e pelo backend, não pelo menu.
   const itens = navItems.filter((item) => item.perfis.includes(perfil ?? 'OPERADOR'))
 
   return (
-    <aside className="w-64 min-h-screen bg-gray-900 text-white flex flex-col">
-      {/* Logo — 34px é o tamanho em que o lockup ocupa os 224px úteis da
-          sidebar, proporção validada no design da marca. */}
+    <aside
+      className={`min-h-screen bg-gray-900 text-white flex flex-col transition-[width] duration-200 ${
+        recolhida ? 'w-16' : 'w-64'
+      }`}
+    >
+      {/* Logo — recolhida, sobra só o símbolo, que é legível sozinho por
+          aparecer embutido no wordmark quando a sidebar está aberta. */}
       <div className="h-16 flex items-center justify-center border-b border-gray-700">
-        <Logo tema="tinta" className="text-[34px]" />
+        {recolhida ? (
+          <span role="img" aria-label="Controlog">
+            <LogoSimbolo tema="tinta" className="h-7 w-7" />
+          </span>
+        ) : (
+          <Logo tema="tinta" className="text-[34px]" />
+        )}
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className={`flex-1 py-4 space-y-1 ${recolhida ? 'px-2' : 'px-3'}`}>
         {itens.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
+            title={recolhida ? label : undefined}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              `flex items-center rounded-lg text-sm font-medium transition-colors ${
+                recolhida ? 'justify-center px-0 py-2.5' : 'gap-3 px-4 py-2.5'
+              } ${
                 isActive
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               }`
             }
           >
-            <Icon size={18} />
-            {label}
+            <Icon size={18} className="shrink-0" />
+            {/* Recolhida, o rótulo some da tela mas continua sendo o nome
+                acessível do link — senão o menu viraria 11 links sem nome. */}
+            <span className={recolhida ? 'sr-only' : undefined}>{label}</span>
           </NavLink>
         ))}
       </nav>
 
       {/* Footer */}
       <div className="p-4 border-t border-gray-700 text-xs text-gray-400 text-center">
-        Controlog v{APP_VERSION}
+        {recolhida ? `v${APP_VERSION}` : `Controlog v${APP_VERSION}`}
       </div>
     </aside>
   )
