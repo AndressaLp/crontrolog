@@ -59,12 +59,22 @@ Banco: Neon (Postgres serverless, fora da Vercel)
   (Jest) e do frontend (lint + build + Vitest) no GitHub Actions. Não muda nada aqui —
   o CI nunca teve nada específico do Railway.
 - **CD** — `controlog-backend` e `controlog-frontend` são dois projetos Vercel
-  separados, cada um linkado ao repositório GitHub (`davigpe/controlog`) com Root
-  Directory apontando pra sua respectiva pasta (configurado automaticamente ao rodar
-  `vercel link` de dentro de cada pasta — diferente do Railway, não precisa de
-  chamada de API separada pra isso). Um `git push` para `main` já é suficiente pra
-  publicar as duas partes; cada projeto só rebuilda quando algo na sua própria pasta
-  muda (comportamento padrão da Vercel em monorepo via "Ignored Build Step").
+  separados, cada um linkado ao repositório GitHub (`davigpe/controlog`) com **Root
+  Directory** apontando pra sua respectiva pasta. Um `git push` para `main` já é
+  suficiente pra publicar as duas partes; cada projeto só rebuilda quando algo na sua
+  própria pasta muda (comportamento padrão da Vercel em monorepo via "Ignored Build
+  Step").
+
+  > ⚠️ **O Root Directory precisa ser configurado no painel** (Settings → Build &
+  > Deployment), não pelo CLI. O `vercel link` **não** faz isso: ele só cria o
+  > `.vercel/project.json` local, que faz os deploys *rodados pelo CLI* usarem a pasta
+  > atual como raiz. O `rootDirectory` do projeto continua `.` — e é esse valor que os
+  > builds disparados pelo Git usam. Com ele errado, num monorepo como este, o build
+  > roda na raiz do repositório, onde não existe `package.json`, e falha com
+  > `enoent Could not read package.json` (no backend aparece disfarçado como
+  > `Cannot read properties of undefined (reading 'fsPath')`). O sintoma é
+  > traiçoeiro: `vercel --prod` funciona, todo `git push` falha, e a URL de produção
+  > segue servindo o último deploy manual.
 
 ## Variáveis de ambiente configuradas
 
@@ -102,7 +112,7 @@ Guarde as duas — vão virar `DATABASE_URL` e `DIRECT_URL` do backend.
 ```bash
 cd controlog-backend
 vercel login                     # abre o navegador para autenticar
-vercel link                      # cria/linka o projeto Vercel com Root Directory = esta pasta
+vercel link                      # cria/linka o projeto (NAO configura o Root Directory — ver passo 5)
 
 vercel env add DATABASE_URL production     # cole a connection string COM -pooler
 vercel env add DIRECT_URL production       # cole a connection string SEM -pooler
@@ -143,8 +153,19 @@ Em cada pasta (`controlog-backend` e `controlog-frontend`):
 vercel git connect
 ```
 
-Depois, no painel de cada projeto → **Settings → Git**, confirme que a
-**Production Branch** é `main`.
+Depois, no painel de cada projeto, dois ajustes — **os dois são obrigatórios**, e é
+só aqui que o deploy por `git push` passa a funcionar:
+
+1. **Settings → Build & Deployment → Root Directory** — definir a pasta do serviço
+   (`controlog-backend` num projeto, `controlog-frontend` no outro). O padrão é `.`, a
+   raiz do repositório, que neste monorepo não tem `package.json` — com ele assim todo
+   build disparado pelo Git falha, mesmo que `vercel --prod` funcione.
+2. **Settings → Git → Production Branch** — confirmar que é `main`.
+
+Verifique que funcionou antes de confiar no push: depois do primeiro `git push`,
+`vercel ls` (de dentro da pasta do serviço) deve mostrar um deploy `● Ready` com
+Environment `Production`. Se aparecer `● Error` com duração de poucos segundos, o
+build nem chegou a compilar — `vercel inspect --logs <url-do-deploy>` mostra o motivo.
 
 ### Popular o banco com dados de exemplo
 

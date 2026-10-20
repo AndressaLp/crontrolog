@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { render } from '@testing-library/react';
 import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
 import Header from './Header';
 
 function renderHeader(route = '/') {
@@ -23,6 +24,7 @@ beforeEach(() => {
     accessToken: 'token',
     refreshToken: 'refresh',
   });
+  useUiStore.setState({ sidebarRecolhida: false });
 });
 
 describe('Header', () => {
@@ -47,5 +49,21 @@ describe('Header', () => {
 
     expect(await screen.findByText('Tela de Login')).toBeInTheDocument();
     expect(useAuthStore.getState().accessToken).toBeNull();
+  });
+  test('o botão alterna a sidebar e anuncia o estado via aria-expanded', async () => {
+    const user = userEvent.setup();
+    renderHeader();
+
+    const recolher = screen.getByRole('button', { name: 'Recolher menu lateral' });
+    expect(recolher).toHaveAttribute('aria-expanded', 'true');
+
+    await user.click(recolher);
+
+    expect(useUiStore.getState().sidebarRecolhida).toBe(true);
+    const expandir = screen.getByRole('button', { name: 'Expandir menu lateral' });
+    expect(expandir).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(expandir);
+    expect(useUiStore.getState().sidebarRecolhida).toBe(false);
   });
 });

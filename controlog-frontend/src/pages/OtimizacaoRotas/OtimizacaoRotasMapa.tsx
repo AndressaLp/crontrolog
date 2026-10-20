@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { MapContainer, Marker, Polyline, Popup, TileLayer } from 'react-leaflet';
+import { Warehouse } from 'lucide-react';
 import { aplicarFixIconesLeaflet } from '@/lib/leafletIconFix';
 import { CINZA_SELECAO, depositoIcon, iconeColorido, pedidoIcon } from '@/lib/mapaIcones';
 import { AjustarBounds, CapturaCliqueDesenho, PoligonoDesenho } from '@/components/shared/mapaDesenho';
@@ -66,7 +67,12 @@ export default function OtimizacaoRotasMapa({
       <CapturaCliqueDesenho ativo={modoDesenho} onClique={onCliqueMapa} />
 
       <Marker position={[origem.lat, origem.lng]} icon={depositoIcon} interactive={!modoDesenho}>
-        <Popup>🏭 Centro de Distribuição</Popup>
+        <Popup>
+          <span className="flex items-center gap-1.5">
+            <Warehouse size={14} className="text-gray-700 shrink-0" aria-hidden="true" />
+            Centro de Distribuição
+          </span>
+        </Popup>
       </Marker>
 
       {naoAtribuidos.map((pedido) => {

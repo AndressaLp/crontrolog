@@ -4,7 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Truck } from 'lucide-react';
+import { PackageCheck, Route, Users } from 'lucide-react';
+import { LogoSimbolo, LogoTexto } from '@/components/shared/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +19,29 @@ const loginSchema = z.object({
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
+
+/**
+ * O que a plataforma entrega, para quem chega na tela sem conhecer o produto.
+ * São capacidades que existem de fato no sistema — não métricas de operação,
+ * que seriam invenção num projeto sem histórico de produção.
+ */
+const RECURSOS = [
+  {
+    icone: Route,
+    titulo: 'Rotas otimizadas',
+    descricao: 'Melhor ordem de entrega e traçado real pelas ruas',
+  },
+  {
+    icone: PackageCheck,
+    titulo: 'Entregas rastreadas',
+    descricao: 'Do pendente ao concluído, com data efetiva',
+  },
+  {
+    icone: Users,
+    titulo: 'Equipe e frota',
+    descricao: 'Motoristas, veículos e atribuição de rotas',
+  },
+] as const;
 
 export default function Login() {
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -55,17 +79,72 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-sm">
-        <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white">
-            <Truck size={24} />
+    <div className="flex min-h-screen">
+      {/* ── Painel da marca ──
+          Escondido abaixo de lg: numa tela estreita ele empurraria o
+          formulário para fora da primeira dobra, que é o que importa aqui. */}
+      <section className="hidden lg:flex lg:w-3/5 flex-col justify-between bg-gradient-to-br from-[#172554] via-[#1e40af] to-[#2563eb] p-12 text-white">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
+            <LogoSimbolo tema="azul" className="h-6 w-6" />
           </div>
-          <h1 className="text-xl font-bold text-gray-800">Controlog</h1>
-          <p className="text-sm text-gray-500">Entre com sua conta para continuar</p>
+          <div className="leading-tight">
+            <LogoTexto tema="azul" className="text-lg" />
+            <p className="text-xs text-blue-200">Sistema de Gestão Logística</p>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div className="max-w-xl">
+          {/* Chamada de capa, não estrutura do documento — o h1 da página é o
+              do formulário, que é o que a pessoa veio fazer aqui. */}
+          <p className="text-5xl font-bold leading-[1.1] tracking-tight">
+            Gerencie sua
+            <br />
+            <span className="text-blue-300">operação logística</span>
+            <br />
+            de ponta a ponta
+          </p>
+          <p className="mt-6 max-w-md text-base leading-relaxed text-blue-100">
+            Planeje rotas, acompanhe entregas e controle a frota num fluxo único — no lugar de
+            planilhas soltas e mensagens de WhatsApp.
+          </p>
+
+          <ul className="mt-10 grid grid-cols-3 gap-4">
+            {RECURSOS.map(({ icone: Icone, titulo, descricao }) => (
+              <li
+                key={titulo}
+                className="rounded-xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm"
+              >
+                <Icone size={20} className="text-blue-200" aria-hidden="true" />
+                <p className="mt-3 font-semibold leading-tight">{titulo}</p>
+                <p className="mt-1 text-xs leading-snug text-blue-200">{descricao}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="text-xs text-blue-200/80">© 2026 Controlog</p>
+      </section>
+
+      {/* ── Formulário ── */}
+      <main className="flex w-full items-center justify-center bg-white px-4 py-12 lg:w-2/5">
+        <div className="w-full max-w-sm">
+          {/* A marca só se repete aqui quando o painel da esquerda não aparece. */}
+          <div className="mb-6 flex flex-col items-center gap-2 text-center lg:hidden">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600">
+              <LogoSimbolo tema="azul" className="h-7 w-7" />
+            </div>
+            <LogoTexto tema="claro" className="text-xl" />
+          </div>
+
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">Bem-vindo de volta</h1>
+            <p className="mt-1 text-sm text-gray-600">
+              Entre com suas credenciais para continuar
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">E-mail</Label>
             <Input
@@ -95,15 +174,22 @@ export default function Login() {
             {errors.senha && <p className="text-xs text-red-600">{errors.senha.message}</p>}
           </div>
 
-          <Button type="submit" className="w-full justify-center" disabled={submitting}>
-            {submitting ? 'Entrando...' : 'Entrar'}
-          </Button>
-        </form>
+            {/* Azul explícito: o `default` do shadcn é preto, mas toda ação
+                primária do sistema (ex.: "Novo Veículo") usa o azul da marca. */}
+            <Button
+              type="submit"
+              className="w-full justify-center bg-blue-600 text-white hover:bg-blue-700"
+              disabled={submitting}
+            >
+              {submitting ? 'Entrando...' : 'Entrar'}
+            </Button>
+          </form>
 
-        <p className="mt-4 text-center text-xs text-gray-600">
-          Login de teste: gestor@controlog.com / controlog123
-        </p>
-      </div>
+          <p className="mt-4 text-center text-xs text-gray-600">
+            Login de teste: gestor@controlog.com / controlog123
+          </p>
+        </div>
+      </main>
     </div>
   );
 }
