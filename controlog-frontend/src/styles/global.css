@@ -2,6 +2,9 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+/* Só a logo usa Archivo — o eixo de largura (wdth) vem do design da marca,
+   que define o wordmark a 88% de largura. Ver components/shared/Logo.tsx. */
+@import "@fontsource-variable/archivo/wdth.css";
 
 @custom-variant dark (&:is(.dark *));
 

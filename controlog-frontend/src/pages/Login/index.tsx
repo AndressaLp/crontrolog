@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Truck } from 'lucide-react';
+import { LogoSimbolo, LogoTexto } from '@/components/shared/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -58,10 +58,12 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-sm">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white">
-            <Truck size={24} />
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600">
+            <LogoSimbolo tema="azul" className="h-7 w-7" />
           </div>
-          <h1 className="text-xl font-bold text-gray-800">Controlog</h1>
+          <h1 className="text-xl">
+            <LogoTexto tema="claro" />
+          </h1>
           <p className="text-sm text-gray-500">Entre com sua conta para continuar</p>
         </div>
 

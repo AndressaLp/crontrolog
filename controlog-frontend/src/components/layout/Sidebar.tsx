@@ -11,6 +11,7 @@ import {
   BarChart2,
   UserCog,
 } from 'lucide-react'
+import { Logo } from '@/components/shared/Logo'
 import { PERFIS_GESTAO, type Perfil } from '@/lib/perfil'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -36,11 +37,10 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 min-h-screen bg-gray-900 text-white flex flex-col">
-      {/* Logo */}
+      {/* Logo — 34px é o tamanho em que o lockup ocupa os 224px úteis da
+          sidebar, proporção validada no design da marca. */}
       <div className="h-16 flex items-center justify-center border-b border-gray-700">
-        <span className="text-xl font-bold tracking-wide text-blue-400">
-          🚚 Controlog
-        </span>
+        <Logo tema="tinta" className="text-[34px]" />
       </div>
 
       {/* Nav */}
