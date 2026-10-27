@@ -3,6 +3,11 @@ import { createRotaService } from '../src/services/rota.service.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../src/utils/AppError.js';
 
 function buildPrismaMock() {
+  const tx = {
+    rota: { update: jest.fn() },
+    entrega: { updateMany: jest.fn() },
+  };
+
   return {
     rota: {
       findMany: jest.fn(),
@@ -14,7 +19,9 @@ function buildPrismaMock() {
     },
     motorista: { findUnique: jest.fn() },
     veiculo: { findUnique: jest.fn() },
-    entrega: { count: jest.fn() },
+    entrega: { count: jest.fn(), updateMany: jest.fn() },
+    $transaction: jest.fn(async (fn) => fn(tx)),
+    _tx: tx,
   };
 }
 
@@ -103,7 +110,7 @@ describe('rota.service', () => {
   test('update permite reativação de rota concluída quando ator é GESTOR', async () => {
     const prisma = buildPrismaMock();
     prisma.rota.findUnique.mockResolvedValue({ id: 'r1', codigo: 'RT-010', status: 'CONCLUIDA' });
-    prisma.rota.update.mockResolvedValue({
+    prisma._tx.rota.update.mockResolvedValue({
       id: 'r1',
       ...dadosRotaValida,
       status: 'ATIVA',
@@ -116,6 +123,51 @@ describe('rota.service', () => {
     const rota = await service.update('r1', { status: 'ATIVA' }, { perfil: 'GESTOR' });
 
     expect(rota.status).toBe('ATIVA');
+  });
+
+  test('reatribuir a rota a outro motorista move as entregas junto', async () => {
+    const prisma = buildPrismaMock();
+    prisma.rota.findUnique.mockResolvedValue({ id: 'r1', codigo: 'RT-010', status: 'ATIVA', motoristaId: 'm1' });
+    prisma.motorista.findUnique.mockResolvedValue({ id: 'm2', nome: 'Ana Souza' });
+    prisma._tx.rota.update.mockResolvedValue({
+      id: 'r1',
+      ...dadosRotaValida,
+      motoristaId: 'm2',
+      criadoEm: new Date(),
+      motorista: { id: 'm2', nome: 'Ana Souza' },
+      veiculo: { id: 'v1', placa: 'ABC-1234', modelo: 'Sprinter' },
+      entregas: [{ status: 'PENDENTE' }, { status: 'ENTREGUE' }],
+    });
+
+    const service = createRotaService(prisma);
+    const rota = await service.update('r1', { motoristaId: 'm2' }, { perfil: 'GESTOR' });
+
+    expect(prisma._tx.entrega.updateMany).toHaveBeenCalledWith({
+      where: { rotaId: 'r1' },
+      data: { motoristaId: 'm2' },
+    });
+    expect(rota.motorista.nome).toBe('Ana Souza');
+    expect(rota.totalEntregas).toBe(2);
+    expect(rota.entregasPendentes).toBe(1);
+  });
+
+  test('update que não troca o motorista não mexe nas entregas', async () => {
+    const prisma = buildPrismaMock();
+    prisma.rota.findUnique.mockResolvedValue({ id: 'r1', codigo: 'RT-010', status: 'ATIVA', motoristaId: 'm1' });
+    prisma.motorista.findUnique.mockResolvedValue({ id: 'm1', nome: 'Carlos Silva' });
+    prisma._tx.rota.update.mockResolvedValue({
+      id: 'r1',
+      ...dadosRotaValida,
+      criadoEm: new Date(),
+      motorista: { id: 'm1', nome: 'Carlos Silva' },
+      veiculo: { id: 'v1', placa: 'ABC-1234', modelo: 'Sprinter' },
+      entregas: [],
+    });
+
+    const service = createRotaService(prisma);
+    await service.update('r1', { motoristaId: 'm1' }, { perfil: 'GESTOR' });
+
+    expect(prisma._tx.entrega.updateMany).not.toHaveBeenCalled();
   });
 
   test('update de rota inexistente lança NotFoundError', async () => {

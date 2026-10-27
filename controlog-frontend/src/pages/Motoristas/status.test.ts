@@ -12,6 +12,7 @@ function buildMotorista(overrides: Partial<Motorista> = {}): Motorista {
     emRota: false,
     entregasRealizadas: 0,
     criadoEm: new Date().toISOString(),
+    acessoEmail: null,
     ...overrides,
   };
 }

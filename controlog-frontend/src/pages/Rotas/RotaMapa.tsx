@@ -1,5 +1,6 @@
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
+import { Flag, MapPin } from 'lucide-react';
 import { aplicarFixIconesLeaflet } from '@/lib/leafletIconFix';
 import type { Rota } from './types';
 
@@ -43,11 +44,21 @@ export default function RotaMapa({ rota }: Props) {
       />
 
       <Marker position={rota.coordenadasOrigem} icon={origemIcon}>
-        <Popup>🟢 Origem: {rota.origem}</Popup>
+        <Popup>
+          <span className="flex items-center gap-1.5">
+            <MapPin size={14} className="text-green-600 shrink-0" aria-hidden="true" />
+            Origem: {rota.origem}
+          </span>
+        </Popup>
       </Marker>
 
       <Marker position={rota.coordenadasDestino} icon={destinoIcon}>
-        <Popup>🔴 Destino: {rota.destino}</Popup>
+        <Popup>
+          <span className="flex items-center gap-1.5">
+            <Flag size={14} className="text-red-600 shrink-0" aria-hidden="true" />
+            Destino: {rota.destino}
+          </span>
+        </Popup>
       </Marker>
 
       <Polyline

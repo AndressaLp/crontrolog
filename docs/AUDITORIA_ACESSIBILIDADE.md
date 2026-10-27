@@ -36,6 +36,22 @@ Telas cobertas (usuário não autenticado e autenticado como `GESTOR`):
 - Entregas — listagem e modal "Nova Entrega"
 - Relatórios
 
+Telas e estados criados depois desta auditoria em navegador — "Minhas Rotas" (visão do
+motorista), "Atribuição de Rotas", os modais "Criar acesso" e "Atribuir", o login em duas
+colunas e a sidebar recolhida — entraram na guarda de regressão estrutural
+(`src/test/a11y.test.tsx`, zero violações), mas ainda não passaram por uma rodada de
+verificação de contraste em navegador real. Elas reutilizam os mesmos tokens de cor já
+corrigidos nas telas acima, então o risco é baixo, mas a verificação fica pendente.
+
+Dois padrões recentes merecem registro porque não são pegos por auditoria de contraste:
+
+- **Logo** — o terceiro "o" de Contr-o-log é uma forma desenhada, não a letra. O lockup
+  expõe `role="img"` com `aria-label="Controlog"`; sem isso a marca seria anunciada como
+  "Controlg". Verificado em navegador e coberto por `src/components/shared/Logo.test.tsx`.
+- **Sidebar recolhida** — os rótulos dos 11 links viram `sr-only` em vez de sumir do DOM,
+  para que o menu não se torne uma coluna de links sem nome acessível. Coberto por
+  `src/components/layout/Sidebar.test.tsx`.
+
 ## 3. Resultado — antes das correções
 
 | Categoria | O que era | Onde apareceu |

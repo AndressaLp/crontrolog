@@ -1,0 +1,36 @@
+import { z } from 'zod';
+
+export const createPlanoSchema = z.object({
+  nome: z.string().trim().min(1, 'Informe um nome para o plano.'),
+  pedidoIds: z
+    .array(z.string().uuid('pedidoIds deve conter apenas ids válidos.'))
+    .min(1, 'Selecione ao menos um pedido.'),
+});
+
+export const renomearPlanoSchema = z.object({
+  nome: z.string().trim().min(1, 'Informe um nome para o plano.'),
+});
+
+export const otimizarPlanoSchema = z.object({
+  tamanhoRota: z.coerce.number().int().min(1, 'Informe ao menos 1 pedido por rota.').max(50),
+});
+
+// rotaIndex null = desatribuir (o pedido fica no plano, mas fora de qualquer
+// rota); um número = mandar pro grupo daquele índice, existente ou novo.
+export const moverPedidosSchema = z.object({
+  pedidoIds: z
+    .array(z.string().uuid('pedidoIds deve conter apenas ids válidos.'))
+    .min(1, 'Selecione ao menos um pedido.'),
+  rotaIndex: z.number().int().min(1, 'rotaIndex deve ser 1 ou maior.').nullable(),
+});
+
+export const aprovarRotaSchema = z.object({
+  motoristaId: z.string().uuid('Selecione um motorista.'),
+  veiculoId: z.string().uuid('Selecione um veículo.'),
+  dataHora: z.coerce.date({ errorMap: () => ({ message: 'Data/hora inválida.' }) }),
+});
+
+export const listPlanosQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+});

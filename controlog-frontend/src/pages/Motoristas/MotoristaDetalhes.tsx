@@ -1,4 +1,4 @@
-import { Phone, CreditCard, Package, Truck } from 'lucide-react'
+import { Phone, CreditCard, Package, Truck, KeyRound } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { Motorista } from './types'
 import { statusExibicao } from './status'
@@ -36,6 +36,11 @@ export default function MotoristaDetalhes({ motorista, onClose }: Props) {
             <InfoRow icon={<CreditCard size={15} />} label="CNH" value={motorista.cnh} />
             <InfoRow icon={<Package size={15} />} label="Entregas concluídas" value={String(motorista.entregasRealizadas)} />
             <InfoRow icon={<Truck size={15} />} label="Em rota agora" value={motorista.emRota ? 'Sim' : 'Não'} />
+            <InfoRow
+              icon={<KeyRound size={15} />}
+              label="Acesso ao sistema"
+              value={motorista.acessoEmail ?? 'Sem acesso'}
+            />
           </div>
         </div>
       </DialogContent>

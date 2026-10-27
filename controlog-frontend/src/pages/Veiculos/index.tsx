@@ -124,10 +124,10 @@ export default function Veiculos() {
 
       {/* ── Cards de resumo ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard label="Disponíveis" value={totais.disponiveis} color="green"  emoji="✅" />
-        <SummaryCard label="Em Rota"     value={totais.emRota}      color="yellow" emoji="🚛" />
-        <SummaryCard label="Manutenção"  value={totais.manutencao}  color="orange" emoji="🔧" />
-        <SummaryCard label="Inativos"    value={totais.inativos}    color="gray"   emoji="⛔" />
+        <SummaryCard label="Disponíveis" value={totais.disponiveis} color="green"  icon={CheckCircle} />
+        <SummaryCard label="Em Rota"     value={totais.emRota}      color="yellow" icon={Truck} />
+        <SummaryCard label="Manutenção"  value={totais.manutencao}  color="orange" icon={Wrench} />
+        <SummaryCard label="Inativos"    value={totais.inativos}    color="gray"   icon={XCircle} />
       </div>
 
       {/* ── Filtros ── */}
@@ -177,8 +177,8 @@ export default function Veiculos() {
 
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-2xl shrink-0">
-                      🚚
+                    <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                      <Truck size={24} />
                     </div>
                     <div className="min-w-0">
                       <p className="font-semibold text-gray-800 truncate">{v.modelo}</p>
@@ -251,12 +251,12 @@ export default function Veiculos() {
 }
 
 function SummaryCard({
-  label, value, color, emoji,
+  label, value, color, icon: Icon,
 }: {
   label: string
   value: number
   color: 'green' | 'yellow' | 'orange' | 'gray'
-  emoji: string
+  icon: React.ComponentType<{ size?: number }>
 }) {
   const colors = {
     green:  'bg-green-50 text-green-600 border-green-100',
@@ -266,7 +266,7 @@ function SummaryCard({
   }
   return (
     <div className={`rounded-xl border p-4 flex items-center gap-3 ${colors[color]}`}>
-      <span className="text-2xl">{emoji}</span>
+      <Icon size={24} />
       <div>
         <p className="text-2xl font-bold leading-none">{value}</p>
         <p className="text-xs mt-1 text-gray-700">{label}</p>

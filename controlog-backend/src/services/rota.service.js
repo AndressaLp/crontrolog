@@ -4,9 +4,15 @@ import { paginationArgs, paginationMeta } from '../utils/pagination.js';
 const include = {
   motorista: { select: { id: true, nome: true } },
   veiculo: { select: { id: true, placa: true, modelo: true } },
+  // Só o status de cada entrega — o suficiente pra contar total/pendentes na
+  // tela de atribuição sem uma consulta agregada por rota.
+  entregas: { select: { status: true } },
 };
 
+const PENDENTES = new Set(['PENDENTE', 'EM_TRANSITO']);
+
 function toResponse(rota) {
+  const entregas = rota.entregas ?? [];
   return {
     id: rota.id,
     codigo: rota.codigo,
@@ -19,6 +25,8 @@ function toResponse(rota) {
     coordenadasDestino: [rota.latDestino, rota.lngDestino],
     motorista: rota.motorista,
     veiculo: rota.veiculo,
+    totalEntregas: entregas.length,
+    entregasPendentes: entregas.filter((e) => PENDENTES.has(e.status)).length,
   };
 }
 
@@ -106,7 +114,23 @@ export function createRotaService(prisma) {
         if (!veiculo) throw new ValidationError('Veículo informado não existe.');
       }
 
-      const rota = await prisma.rota.update({ where: { id }, data, include });
+      // Reatribuir a rota a outro motorista tem que levar as entregas junto:
+      // Entrega.motoristaId é independente do da Rota, e se ficasse pra trás o
+      // motorista antigo continuaria vendo essas entregas como dele (e os
+      // agregados de "entregas realizadas" contariam pra pessoa errada).
+      const trocouMotorista = data.motoristaId && data.motoristaId !== existente.motoristaId;
+
+      const rota = await prisma.$transaction(async (tx) => {
+        const atualizada = await tx.rota.update({ where: { id }, data, include });
+        if (trocouMotorista) {
+          await tx.entrega.updateMany({
+            where: { rotaId: id },
+            data: { motoristaId: data.motoristaId },
+          });
+        }
+        return atualizada;
+      });
+
       return toResponse(rota);
     },
 
